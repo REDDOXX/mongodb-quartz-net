@@ -1,16 +1,26 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 14
-VisualStudioVersion = 14.0.24720.0
+# Visual Studio Version 17
+VisualStudioVersion = 17.8.34511.84
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Quartz.Spi.MongoDbJobStore", "src\Quartz.Spi.MongoDbJobStore\Quartz.Spi.MongoDbJobStore.csproj", "{E74E5823-4BC3-4BEC-A2D6-57FD0CF044E8}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Quartz.Spi.MongoJobStore", "src\Quartz.Spi.MongoJobStore\Quartz.Spi.MongoJobStore.csproj", "{E74E5823-4BC3-4BEC-A2D6-57FD0CF044E8}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Quartz.Spi.MongoDbJobStore.Tests", "tests\Quartz.Spi.MongoDbJobStore.Tests\Quartz.Spi.MongoDbJobStore.Tests.csproj", "{F7C8DDA0-E08B-4D03-BE83-44CDCF0AEA5A}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Quartz.Spi.MongoJobStore.Tests", "tests\Quartz.Spi.MongoJobStore.Tests\Quartz.Spi.MongoJobStore.Tests.csproj", "{F7C8DDA0-E08B-4D03-BE83-44CDCF0AEA5A}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{68540D53-C6A8-4D9A-99C9-CD7BD1F04C13}"
 	ProjectSection(SolutionItems) = preProject
+		.editorconfig = .editorconfig
+		Directory.Build.props = Directory.Build.props
+		LICENSE.txt = LICENSE.txt
 		README.md = README.md
 	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{C02528EE-7671-44C3-97EF-ACB14B16D880}"
+	ProjectSection(SolutionItems) = preProject
+		src\Directory.Build.props = src\Directory.Build.props
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{FC5D1CB6-7548-4A9C-B17F-0C2997753F1B}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -29,5 +39,12 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{E74E5823-4BC3-4BEC-A2D6-57FD0CF044E8} = {C02528EE-7671-44C3-97EF-ACB14B16D880}
+		{F7C8DDA0-E08B-4D03-BE83-44CDCF0AEA5A} = {FC5D1CB6-7548-4A9C-B17F-0C2997753F1B}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {50C84C3E-FEA4-4EA1-8CB8-E3FF3D95DB27}
 	EndGlobalSection
 EndGlobal

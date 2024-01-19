@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net8.0</TargetFramework>
+		
+		<AssemblyName>Quartz.Spi.MongoJobStore</AssemblyName>
+		<PackageId>Quartz.Spi.MongoJobStore</PackageId>
+
+		<GenerateAssemblyTitleAttribute>false</GenerateAssemblyTitleAttribute>
+		<GenerateAssemblyDescriptionAttribute>false</GenerateAssemblyDescriptionAttribute>
+		<GenerateAssemblyCompanyAttribute>false</GenerateAssemblyCompanyAttribute>
+		<GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
+		<GenerateAssemblyCopyrightAttribute>false</GenerateAssemblyCopyrightAttribute>
+		<GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
+		<GenerateAssemblyFileVersionAttribute>false</GenerateAssemblyFileVersionAttribute>
+
+		<Authors>Gabriel Lucaci, ItsClemi</Authors>
+		<RepositoryUrl>https://github.com/REDDOXX/mongodb-quartz-net</RepositoryUrl>
+		<RepositoryType>GitHub</RepositoryType>
+		<PackageTags>Quartz.NET Store JobStore MongoDB</PackageTags>
+		<PackageProjectUrl>https://github.com/REDDOXX/mongodb-quartz-net</PackageProjectUrl>
+
+		<Title>Quartz.Spi.MongoJobStore</Title>
+
+		<PackageLicenseFile>LICENSE.txt</PackageLicenseFile>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="MongoDB.Driver" Version="2.23.1" />
+		<PackageReference Include="Quartz" Version="3.8.0" />
+		<PackageReference Include="Common.Logging" Version="3.4.1" />
+	</ItemGroup>
+
+
+	<ItemGroup>
+		<None Include="../../license.txt" Pack="true" PackagePath="/" />
+		<None Include="../../readme.md" Pack="true" PackagePath="/" />
+	</ItemGroup>
+</Project>
