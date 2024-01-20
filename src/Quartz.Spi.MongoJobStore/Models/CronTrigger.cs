@@ -4,6 +4,11 @@ namespace Quartz.Spi.MongoJobStore.Models;
 
 internal class CronTrigger : Trigger
 {
+    public string CronExpression { get; set; }
+
+    public string TimeZone { get; set; }
+
+
     public CronTrigger()
     {
     }
@@ -14,10 +19,6 @@ internal class CronTrigger : Trigger
         CronExpression = trigger.CronExpressionString;
         TimeZone = trigger.TimeZone.Id;
     }
-
-    public string CronExpression { get; set; }
-
-    public string TimeZone { get; set; }
 
     public override ITrigger GetTrigger()
     {

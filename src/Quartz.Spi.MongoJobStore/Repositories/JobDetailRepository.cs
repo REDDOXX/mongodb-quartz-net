@@ -15,6 +15,21 @@ internal class JobDetailRepository : BaseRepository<JobDetail>
     {
     }
 
+    public override async Task EnsureIndex()
+    {
+        await Collection.Indexes.CreateOneAsync(
+                new CreateIndexModel<JobDetail>(
+                    Builders<JobDetail>.IndexKeys.Combine(
+                        Builders<JobDetail>.IndexKeys.Ascending(x => x.Id.InstanceName),
+                        Builders<JobDetail>.IndexKeys.Ascending(x => x.Id.Name),
+                        Builders<JobDetail>.IndexKeys.Ascending(x => x.Id.Group)
+                    )
+                )
+            )
+            .ConfigureAwait(false);
+    }
+
+
     public async Task<JobDetail?> GetJob(JobKey jobKey)
     {
         return await Collection.Find(detail => detail.Id == new JobDetailId(jobKey, InstanceName))
@@ -24,13 +39,14 @@ internal class JobDetailRepository : BaseRepository<JobDetail>
 
     public async Task<List<JobKey>> GetJobsKeys(GroupMatcher<JobKey> matcher)
     {
+        var filter = FilterBuilder.And(
+            FilterBuilder.Eq(detail => detail.Id.InstanceName, InstanceName),
+            FilterBuilder.Regex(detail => detail.Id.Group, matcher.ToBsonRegularExpression())
+        );
+
         return await Collection
-            .Find(
-                FilterBuilder.And(
-                    FilterBuilder.Eq(detail => detail.Id.InstanceName, InstanceName),
-                    FilterBuilder.Regex(detail => detail.Id.Group, matcher.ToBsonRegularExpression())
-                )
-            )
+            //
+            .Find(filter)
             .Project(detail => detail.Id.GetJobKey())
             .ToListAsync()
             .ConfigureAwait(false);
@@ -53,7 +69,7 @@ internal class JobDetailRepository : BaseRepository<JobDetail>
         var result = await Collection.ReplaceOneAsync(
                 detail => detail.Id == jobDetail.Id,
                 jobDetail,
-                new UpdateOptions
+                new ReplaceOptions
                 {
                     IsUpsert = upsert,
                 }
@@ -64,18 +80,17 @@ internal class JobDetailRepository : BaseRepository<JobDetail>
 
     public async Task UpdateJobData(JobKey jobKey, JobDataMap jobDataMap)
     {
-        await Collection.UpdateOneAsync(
-                detail => detail.Id == new JobDetailId(jobKey, InstanceName),
-                UpdateBuilder.Set(detail => detail.JobDataMap, jobDataMap)
-            )
+        var update = UpdateBuilder.Set(detail => detail.JobDataMap, jobDataMap);
+
+        await Collection.UpdateOneAsync(detail => detail.Id == new JobDetailId(jobKey, InstanceName), update)
             .ConfigureAwait(false);
     }
 
     public async Task<long> DeleteJob(JobKey key)
     {
-        var result = await Collection
-            .DeleteOneAsync(FilterBuilder.Where(job => job.Id == new JobDetailId(key, InstanceName)))
-            .ConfigureAwait(false);
+        var filter = FilterBuilder.Where(job => job.Id == new JobDetailId(key, InstanceName));
+
+        var result = await Collection.DeleteOneAsync(filter).ConfigureAwait(false);
         return result.DeletedCount;
     }
 
@@ -89,7 +104,7 @@ internal class JobDetailRepository : BaseRepository<JobDetail>
     public async Task<long> GetCount()
     {
         return await Collection.Find(detail => detail.Id.InstanceName == InstanceName)
-            .CountAsync()
+            .CountDocumentsAsync()
             .ConfigureAwait(false);
     }
 }

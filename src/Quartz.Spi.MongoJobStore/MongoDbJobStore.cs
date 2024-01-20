@@ -4,13 +4,11 @@ using Common.Logging;
 
 using JetBrains.Annotations;
 
-using Microsoft.Extensions.Logging;
-
 using MongoDB.Driver;
 
 using Quartz.Impl.AdoJobStore;
 using Quartz.Impl.Matchers;
-using Quartz.Logging;
+using Quartz.Simpl;
 using Quartz.Spi.MongoJobStore.Models;
 using Quartz.Spi.MongoJobStore.Models.Id;
 using Quartz.Spi.MongoJobStore.Repositories;
@@ -23,6 +21,9 @@ namespace Quartz.Spi.MongoJobStore;
 [PublicAPI]
 public class MongoDbJobStore : IJobStore
 {
+    internal static readonly JsonObjectSerializer ObjectSerializer = new();
+
+
     private const string KeySignalChangeForTxCompletion = "sigChangeForTxCompletion";
     private const string AllGroupsPaused = "_$_ALL_GROUPS_PAUSED_$_";
 
@@ -112,10 +113,11 @@ public class MongoDbJobStore : IJobStore
     public string InstanceName { get; set; }
     public int ThreadPoolSize { get; set; }
 
-
     static MongoDbJobStore()
     {
         JobStoreClassMap.RegisterClassMaps();
+
+        ObjectSerializer.Initialize();
     }
 
     public MongoDbJobStore()

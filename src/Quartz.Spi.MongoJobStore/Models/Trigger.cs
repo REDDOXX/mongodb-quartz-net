@@ -29,31 +29,6 @@ internal enum TriggerState
 )]
 internal abstract class Trigger
 {
-    protected Trigger()
-    {
-    }
-
-    protected Trigger(ITrigger trigger, TriggerState state, string instanceName)
-    {
-        Id = new TriggerId
-        {
-            InstanceName = instanceName,
-            Group = trigger.Key.Group,
-            Name = trigger.Key.Name,
-        };
-        JobKey = trigger.JobKey;
-        Description = trigger.Description;
-        NextFireTime = trigger.GetNextFireTimeUtc()?.UtcDateTime;
-        PreviousFireTime = trigger.GetPreviousFireTimeUtc()?.UtcDateTime;
-        State = state;
-        StartTime = trigger.StartTimeUtc.UtcDateTime;
-        EndTime = trigger.EndTimeUtc?.UtcDateTime;
-        CalendarName = trigger.CalendarName;
-        MisfireInstruction = trigger.MisfireInstruction;
-        Priority = trigger.Priority;
-        JobDataMap = trigger.JobDataMap;
-    }
-
     [BsonId]
     public TriggerId Id { get; set; }
 
@@ -85,6 +60,32 @@ internal abstract class Trigger
     public string Type { get; set; }
 
     public JobDataMap JobDataMap { get; set; }
+
+
+    protected Trigger()
+    {
+    }
+
+    protected Trigger(ITrigger trigger, TriggerState state, string instanceName)
+    {
+        Id = new TriggerId
+        {
+            InstanceName = instanceName,
+            Group = trigger.Key.Group,
+            Name = trigger.Key.Name,
+        };
+        JobKey = trigger.JobKey;
+        Description = trigger.Description;
+        NextFireTime = trigger.GetNextFireTimeUtc()?.UtcDateTime;
+        PreviousFireTime = trigger.GetPreviousFireTimeUtc()?.UtcDateTime;
+        State = state;
+        StartTime = trigger.StartTimeUtc.UtcDateTime;
+        EndTime = trigger.EndTimeUtc?.UtcDateTime;
+        CalendarName = trigger.CalendarName;
+        MisfireInstruction = trigger.MisfireInstruction;
+        Priority = trigger.Priority;
+        JobDataMap = trigger.JobDataMap;
+    }
 
     public abstract ITrigger GetTrigger();
 

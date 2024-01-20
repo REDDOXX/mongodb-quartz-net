@@ -1,7 +1,12 @@
-﻿namespace Quartz.Spi.MongoJobStore.Models.Id;
+namespace Quartz.Spi.MongoJobStore.Models.Id;
 
-internal class CalendarId : BaseId
+internal class CalendarId
 {
+    public string InstanceName { get; set; }
+
+    public string CalendarName { get; set; }
+
+
     public CalendarId()
     {
     }
@@ -11,6 +16,4 @@ internal class CalendarId : BaseId
         InstanceName = instanceName;
         CalendarName = calendarName;
     }
-
-    public string CalendarName { get; set; }
 }

@@ -69,13 +69,14 @@ internal class TriggerRepository : BaseRepository<Trigger>
 
     public async Task<List<TriggerKey>> GetTriggerKeys(GroupMatcher<TriggerKey> matcher)
     {
+        var filter = FilterBuilder.And(
+            FilterBuilder.Eq(trigger => trigger.Id.InstanceName, InstanceName),
+            FilterBuilder.Regex(trigger => trigger.Id.Group, matcher.ToBsonRegularExpression())
+        );
+
         return await Collection
-            .Find(
-                FilterBuilder.And(
-                    FilterBuilder.Eq(trigger => trigger.Id.InstanceName, InstanceName),
-                    FilterBuilder.Regex(trigger => trigger.Id.Group, matcher.ToBsonRegularExpression())
-                )
-            )
+            //
+            .Find(filter)
             .Project(trigger => trigger.Id.GetTriggerKey())
             .ToListAsync()
             .ConfigureAwait(false);
@@ -145,7 +146,7 @@ internal class TriggerRepository : BaseRepository<Trigger>
     public async Task<long> GetCount()
     {
         return await Collection.Find(trigger => trigger.Id.InstanceName == InstanceName)
-            .CountAsync()
+            .CountDocumentsAsync()
             .ConfigureAwait(false);
     }
 
@@ -153,7 +154,7 @@ internal class TriggerRepository : BaseRepository<Trigger>
     {
         return await Collection
             .Find(FilterBuilder.Where(trigger => trigger.Id.InstanceName == InstanceName && trigger.JobKey == jobKey))
-            .CountAsync()
+            .CountDocumentsAsync()
             .ConfigureAwait(false);
     }
 
@@ -165,7 +166,7 @@ internal class TriggerRepository : BaseRepository<Trigger>
                            trigger.NextFireTime < nextFireTime &&
                            trigger.State == Models.TriggerState.Waiting
             )
-            .CountAsync()
+            .CountDocumentsAsync()
             .ConfigureAwait(false);
     }
 
@@ -181,9 +182,11 @@ internal class TriggerRepository : BaseRepository<Trigger>
 
     public async Task<long> UpdateTriggerState(TriggerKey triggerKey, Models.TriggerState state)
     {
+        var update = UpdateBuilder.Set(trigger => trigger.State, state);
+
         var result = await Collection.UpdateOneAsync(
                 trigger => trigger.Id == new TriggerId(triggerKey, InstanceName),
-                UpdateBuilder.Set(trigger => trigger.State, state)
+                update
             )
             .ConfigureAwait(false);
         return result.ModifiedCount;
@@ -195,9 +198,11 @@ internal class TriggerRepository : BaseRepository<Trigger>
         Models.TriggerState oldState
     )
     {
+        var update = UpdateBuilder.Set(trigger => trigger.State, newState);
+
         var result = await Collection.UpdateOneAsync(
                 trigger => trigger.Id == new TriggerId(triggerKey, InstanceName) && trigger.State == oldState,
-                UpdateBuilder.Set(trigger => trigger.State, newState)
+                update
             )
             .ConfigureAwait(false);
         return result.ModifiedCount;
@@ -209,15 +214,15 @@ internal class TriggerRepository : BaseRepository<Trigger>
         params Models.TriggerState[] oldStates
     )
     {
-        var result = await Collection.UpdateManyAsync(
-                FilterBuilder.And(
-                    FilterBuilder.Eq(trigger => trigger.Id.InstanceName, InstanceName),
-                    FilterBuilder.Regex(trigger => trigger.Id.Group, matcher.ToBsonRegularExpression()),
-                    FilterBuilder.In(trigger => trigger.State, oldStates)
-                ),
-                UpdateBuilder.Set(trigger => trigger.State, newState)
-            )
-            .ConfigureAwait(false);
+        var filter = FilterBuilder.And(
+            FilterBuilder.Eq(trigger => trigger.Id.InstanceName, InstanceName),
+            FilterBuilder.Regex(trigger => trigger.Id.Group, matcher.ToBsonRegularExpression()),
+            FilterBuilder.In(trigger => trigger.State, oldStates)
+        );
+
+        var update = UpdateBuilder.Set(trigger => trigger.State, newState);
+
+        var result = await Collection.UpdateManyAsync(filter, update).ConfigureAwait(false);
         return result.ModifiedCount;
     }
 
@@ -227,11 +232,13 @@ internal class TriggerRepository : BaseRepository<Trigger>
         params Models.TriggerState[] oldStates
     )
     {
+        var update = UpdateBuilder.Set(trigger => trigger.State, newState);
+
         var result = await Collection.UpdateManyAsync(
                 trigger => trigger.Id.InstanceName == InstanceName &&
                            trigger.JobKey == jobKey &&
                            oldStates.Contains(trigger.State),
-                UpdateBuilder.Set(trigger => trigger.State, newState)
+                update
             )
             .ConfigureAwait(false);
         return result.ModifiedCount;
@@ -239,9 +246,11 @@ internal class TriggerRepository : BaseRepository<Trigger>
 
     public async Task<long> UpdateTriggersStates(JobKey jobKey, Models.TriggerState newState)
     {
+        var update = UpdateBuilder.Set(trigger => trigger.State, newState);
+
         var result = await Collection.UpdateManyAsync(
                 trigger => trigger.Id.InstanceName == InstanceName && trigger.JobKey == jobKey,
-                UpdateBuilder.Set(trigger => trigger.State, newState)
+                update
             )
             .ConfigureAwait(false);
         return result.ModifiedCount;
@@ -249,9 +258,11 @@ internal class TriggerRepository : BaseRepository<Trigger>
 
     public async Task<long> UpdateTriggersStates(Models.TriggerState newState, params Models.TriggerState[] oldStates)
     {
+        var update = UpdateBuilder.Set(trigger => trigger.State, newState);
+
         var result = await Collection.UpdateManyAsync(
                 trigger => trigger.Id.InstanceName == InstanceName && oldStates.Contains(trigger.State),
-                UpdateBuilder.Set(trigger => trigger.State, newState)
+                update
             )
             .ConfigureAwait(false);
         return result.ModifiedCount;
@@ -259,18 +270,18 @@ internal class TriggerRepository : BaseRepository<Trigger>
 
     public async Task<long> DeleteTrigger(TriggerKey key)
     {
-        var result = await Collection
-            .DeleteOneAsync(FilterBuilder.Where(trigger => trigger.Id == new TriggerId(key, InstanceName)))
-            .ConfigureAwait(false);
+        var filter = FilterBuilder.Where(trigger => trigger.Id == new TriggerId(key, InstanceName));
+
+        var result = await Collection.DeleteOneAsync(filter).ConfigureAwait(false);
         return result.DeletedCount;
     }
 
     public async Task<long> DeleteTriggers(JobKey jobKey)
     {
-        var result = await Collection.DeleteManyAsync(
-                FilterBuilder.Where(trigger => trigger.Id.InstanceName == InstanceName && trigger.JobKey == jobKey)
-            )
-            .ConfigureAwait(false);
+        var filter =
+            FilterBuilder.Where(trigger => trigger.Id.InstanceName == InstanceName && trigger.JobKey == jobKey);
+
+        var result = await Collection.DeleteManyAsync(filter).ConfigureAwait(false);
         return result.DeletedCount;
     }
 

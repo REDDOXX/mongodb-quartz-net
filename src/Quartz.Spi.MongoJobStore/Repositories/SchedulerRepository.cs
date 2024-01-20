@@ -18,7 +18,7 @@ internal class SchedulerRepository : BaseRepository<Scheduler>
         await Collection.ReplaceOneAsync(
                 sch => sch.Id == scheduler.Id,
                 scheduler,
-                new UpdateOptions
+                new ReplaceOptions
                 {
                     IsUpsert = true,
                 }
@@ -33,10 +33,9 @@ internal class SchedulerRepository : BaseRepository<Scheduler>
 
     public async Task UpdateState(string id, SchedulerState state)
     {
-        await Collection.UpdateOneAsync(
-                sch => sch.Id == new SchedulerId(id, InstanceName),
-                UpdateBuilder.Set(sch => sch.State, state)
-            )
+        var update = UpdateBuilder.Set(sch => sch.State, state);
+
+        await Collection.UpdateOneAsync(sch => sch.Id == new SchedulerId(id, InstanceName), update)
             .ConfigureAwait(false);
     }
 }

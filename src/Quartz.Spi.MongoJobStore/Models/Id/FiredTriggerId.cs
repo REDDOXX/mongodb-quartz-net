@@ -1,7 +1,12 @@
-﻿namespace Quartz.Spi.MongoJobStore.Models.Id;
+namespace Quartz.Spi.MongoJobStore.Models.Id;
 
-internal class FiredTriggerId : BaseId
+internal class FiredTriggerId
 {
+    public string InstanceName { get; set; }
+
+    public string FiredInstanceId { get; set; }
+
+
     public FiredTriggerId()
     {
     }
@@ -11,6 +16,4 @@ internal class FiredTriggerId : BaseId
         InstanceName = instanceName;
         FiredInstanceId = firedInstanceId;
     }
-
-    public string FiredInstanceId { get; set; }
 }

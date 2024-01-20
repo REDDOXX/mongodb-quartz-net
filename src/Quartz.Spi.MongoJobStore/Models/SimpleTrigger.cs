@@ -4,6 +4,13 @@ namespace Quartz.Spi.MongoJobStore.Models;
 
 internal class SimpleTrigger : Trigger
 {
+    public int RepeatCount { get; set; }
+
+    public TimeSpan RepeatInterval { get; set; }
+
+    public int TimesTriggered { get; set; }
+
+
     public SimpleTrigger()
     {
     }
@@ -15,13 +22,6 @@ internal class SimpleTrigger : Trigger
         RepeatInterval = trigger.RepeatInterval;
         TimesTriggered = trigger.TimesTriggered;
     }
-
-    public int RepeatCount { get; set; }
-
-    public TimeSpan RepeatInterval { get; set; }
-
-    public int TimesTriggered { get; set; }
-
 
     public override ITrigger GetTrigger()
     {

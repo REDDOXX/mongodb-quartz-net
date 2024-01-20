@@ -44,7 +44,9 @@ internal abstract class BaseRepository<TDocument>
 
     public async Task DeleteAll()
     {
-        await Collection.DeleteManyAsync(FilterBuilder.Empty).ConfigureAwait(false);
+        var filter = Builders<TDocument>.Filter.Empty;
+
+        await Collection.DeleteManyAsync(filter).ConfigureAwait(false);
     }
 
     /// <summary>

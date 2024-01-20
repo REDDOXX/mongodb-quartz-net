@@ -1,7 +1,23 @@
-﻿namespace Quartz.Spi.MongoJobStore.Models.Id;
+namespace Quartz.Spi.MongoJobStore.Models.Id;
 
-internal class JobDetailId : BaseKeyId
+internal class JobDetailId
 {
+    /// <summary>
+    /// schedulerName
+    /// </summary>
+    public string InstanceName { get; set; }
+
+    /// <summary>
+    /// jobName
+    /// </summary>
+    public string Name { get; set; }
+
+    /// <summary>
+    /// jobGroup
+    /// </summary>
+    public string Group { get; set; }
+
+
     public JobDetailId()
     {
     }

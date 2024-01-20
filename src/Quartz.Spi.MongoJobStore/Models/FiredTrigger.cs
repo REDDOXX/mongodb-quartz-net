@@ -13,27 +13,6 @@ namespace Quartz.Spi.MongoJobStore.Models;
 [UsedImplicitly]
 internal class FiredTrigger
 {
-    public FiredTrigger()
-    {
-    }
-
-    public FiredTrigger(string firedInstanceId, Trigger trigger, JobDetail? jobDetail)
-    {
-        Id = new FiredTriggerId(firedInstanceId, trigger.Id.InstanceName);
-        TriggerKey = trigger.Id.GetTriggerKey();
-        Fired = DateTime.UtcNow;
-        Scheduled = trigger.NextFireTime;
-        Priority = trigger.Priority;
-        State = trigger.State;
-
-        if (jobDetail != null)
-        {
-            JobKey = jobDetail.Id.GetJobKey();
-            ConcurrentExecutionDisallowed = jobDetail.ConcurrentExecutionDisallowed;
-            RequestsRecovery = jobDetail.RequestsRecovery;
-        }
-    }
-
     [BsonId]
     public FiredTriggerId Id { get; set; }
 
@@ -57,6 +36,28 @@ internal class FiredTrigger
     public bool ConcurrentExecutionDisallowed { get; set; }
 
     public bool RequestsRecovery { get; set; }
+
+
+    public FiredTrigger()
+    {
+    }
+
+    public FiredTrigger(string firedInstanceId, Trigger trigger, JobDetail? jobDetail)
+    {
+        Id = new FiredTriggerId(firedInstanceId, trigger.Id.InstanceName);
+        TriggerKey = trigger.Id.GetTriggerKey();
+        Fired = DateTime.UtcNow;
+        Scheduled = trigger.NextFireTime;
+        Priority = trigger.Priority;
+        State = trigger.State;
+
+        if (jobDetail != null)
+        {
+            JobKey = jobDetail.Id.GetJobKey();
+            ConcurrentExecutionDisallowed = jobDetail.ConcurrentExecutionDisallowed;
+            RequestsRecovery = jobDetail.RequestsRecovery;
+        }
+    }
 
     public IOperableTrigger GetRecoveryTrigger(JobDataMap jobDataMap)
     {

@@ -1,7 +1,12 @@
-﻿namespace Quartz.Spi.MongoJobStore.Models.Id;
+namespace Quartz.Spi.MongoJobStore.Models.Id;
 
-internal class SchedulerId : BaseId
+internal class SchedulerId
 {
+    public string InstanceName { get; set; }
+
+    public string Id { get; set; }
+
+
     public SchedulerId()
     {
     }
@@ -12,7 +17,6 @@ internal class SchedulerId : BaseId
         InstanceName = instanceName;
     }
 
-    public string Id { get; set; }
 
     public override string ToString()
     {

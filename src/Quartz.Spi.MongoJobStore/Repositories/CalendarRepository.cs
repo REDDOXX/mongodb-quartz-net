@@ -15,6 +15,8 @@ internal class CalendarRepository : BaseRepository<Calendar>
 
     public async Task<bool> CalendarExists(string calendarName)
     {
+        var filter = Builders<Calendar>.Filter.Eq(x => x.Id, new CalendarId(calendarName, InstanceName));
+
         return await Collection
             .Find(FilterBuilder.Where(calendar => calendar.Id == new CalendarId(calendarName, InstanceName)))
             .AnyAsync()
@@ -41,7 +43,7 @@ internal class CalendarRepository : BaseRepository<Calendar>
     public async Task<long> GetCount()
     {
         return await Collection.Find(calendar => calendar.Id.InstanceName == InstanceName)
-            .CountAsync()
+            .CountDocumentsAsync()
             .ConfigureAwait(false);
     }
 

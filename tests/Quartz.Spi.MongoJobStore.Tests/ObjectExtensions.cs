@@ -1,5 +1,3 @@
-using Quartz.Simpl;
-
 namespace Quartz.Spi.MongoJobStore.Tests;
 
 /// <summary>
@@ -19,9 +17,7 @@ public static class ObjectExtensions
             return null;
         }
 
-        var bf = new JsonObjectSerializer();
-
-        var buffer = bf.Serialize(obj);
-        return bf.DeSerialize<T>(buffer);
+        var buffer = MongoDbJobStore.ObjectSerializer.Serialize(obj);
+        return MongoDbJobStore.ObjectSerializer.DeSerialize<T>(buffer);
     }
 }

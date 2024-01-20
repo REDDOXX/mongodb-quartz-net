@@ -1,3 +1,5 @@
+using System.Diagnostics;
+
 using FluentAssertions;
 
 using Quartz.Impl.Matchers;
@@ -11,7 +13,7 @@ namespace Quartz.Spi.MongoJobStore.Tests;
 
 public class MongoDbJobStoreTests : BaseStoreTests, IDisposable
 {
-    private IScheduler _scheduler;
+    private readonly IScheduler _scheduler;
 
     public MongoDbJobStoreTests()
     {
@@ -22,6 +24,16 @@ public class MongoDbJobStoreTests : BaseStoreTests, IDisposable
     public void Dispose()
     {
         _scheduler.Shutdown().Wait();
+    }
+
+    [Fact]
+    public void HelloWorldTest()
+    {
+        // TODO: Remove me
+
+        var hello = StdAdoConstants.SqlInsertJobDetail;
+
+        Debugger.Break();
     }
 
     [Fact]

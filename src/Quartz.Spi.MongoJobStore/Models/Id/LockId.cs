@@ -3,8 +3,14 @@ using MongoDB.Bson.Serialization.Attributes;
 
 namespace Quartz.Spi.MongoJobStore.Models.Id;
 
-internal class LockId : BaseId
+internal class LockId
 {
+    public string InstanceName { get; set; }
+
+    [BsonRepresentation(BsonType.String)]
+    public LockType LockType { get; set; }
+
+
     public LockId()
     {
     }
@@ -14,9 +20,6 @@ internal class LockId : BaseId
         LockType = lockType;
         InstanceName = instanceName;
     }
-
-    [BsonRepresentation(BsonType.String)]
-    public LockType LockType { get; set; }
 
     public override string ToString()
     {

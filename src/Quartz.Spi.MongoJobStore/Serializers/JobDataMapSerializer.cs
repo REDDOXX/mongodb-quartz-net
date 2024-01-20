@@ -8,9 +8,7 @@ namespace Quartz.Spi.MongoJobStore.Serializers;
 
 internal class JobDataMapSerializer : SerializerBase<JobDataMap>
 {
-    private readonly JsonObjectSerializer _objectSerializer = new();
-
-    public override void Serialize(BsonSerializationContext context, BsonSerializationArgs args, JobDataMap? value)
+    public override void Serialize(BsonSerializationContext context, BsonSerializationArgs args, JobDataMap value)
     {
         if (value == null)
         {
@@ -18,7 +16,7 @@ internal class JobDataMapSerializer : SerializerBase<JobDataMap>
             return;
         }
 
-        var base64 = Convert.ToBase64String(_objectSerializer.Serialize(value));
+        var base64 = Convert.ToBase64String(MongoDbJobStore.ObjectSerializer.Serialize(value));
         context.Writer.WriteString(base64);
     }
 
@@ -31,6 +29,6 @@ internal class JobDataMapSerializer : SerializerBase<JobDataMap>
         }
 
         var bytes = Convert.FromBase64String(context.Reader.ReadString());
-        return _objectSerializer.DeSerialize<JobDataMap>(bytes);
+        return MongoDbJobStore.ObjectSerializer.DeSerialize<JobDataMap>(bytes);
     }
 }

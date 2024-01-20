@@ -7,23 +7,6 @@ namespace Quartz.Spi.MongoJobStore.Models;
 
 internal class DailyTimeIntervalTrigger : Trigger
 {
-    public DailyTimeIntervalTrigger()
-    {
-    }
-
-    public DailyTimeIntervalTrigger(IDailyTimeIntervalTrigger trigger, TriggerState state, string instanceName)
-        : base(trigger, state, instanceName)
-    {
-        RepeatCount = trigger.RepeatCount;
-        RepeatIntervalUnit = trigger.RepeatIntervalUnit;
-        RepeatInterval = trigger.RepeatInterval;
-        StartTimeOfDay = trigger.StartTimeOfDay;
-        EndTimeOfDay = trigger.EndTimeOfDay;
-        DaysOfWeek = new HashSet<DayOfWeek>(trigger.DaysOfWeek);
-        TimesTriggered = trigger.TimesTriggered;
-        TimeZone = trigger.TimeZone.Id;
-    }
-
     public int RepeatCount { get; set; }
 
     [BsonRepresentation(BsonType.String)]
@@ -40,6 +23,23 @@ internal class DailyTimeIntervalTrigger : Trigger
     public int TimesTriggered { get; set; }
 
     public string TimeZone { get; set; }
+
+    public DailyTimeIntervalTrigger()
+    {
+    }
+
+    public DailyTimeIntervalTrigger(IDailyTimeIntervalTrigger trigger, TriggerState state, string instanceName)
+        : base(trigger, state, instanceName)
+    {
+        RepeatCount = trigger.RepeatCount;
+        RepeatIntervalUnit = trigger.RepeatIntervalUnit;
+        RepeatInterval = trigger.RepeatInterval;
+        StartTimeOfDay = trigger.StartTimeOfDay;
+        EndTimeOfDay = trigger.EndTimeOfDay;
+        DaysOfWeek = new HashSet<DayOfWeek>(trigger.DaysOfWeek);
+        TimesTriggered = trigger.TimesTriggered;
+        TimeZone = trigger.TimeZone.Id;
+    }
 
     public override ITrigger GetTrigger()
     {

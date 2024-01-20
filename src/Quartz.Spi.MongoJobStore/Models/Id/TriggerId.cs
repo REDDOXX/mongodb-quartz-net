@@ -1,7 +1,14 @@
 namespace Quartz.Spi.MongoJobStore.Models.Id;
 
-internal class TriggerId : BaseKeyId
+internal class TriggerId
 {
+    public string InstanceName { get; set; }
+
+    public string Name { get; set; }
+
+    public string Group { get; set; }
+
+
     public TriggerId()
     {
     }
