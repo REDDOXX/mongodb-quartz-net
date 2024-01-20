@@ -1,6 +1,5 @@
 using MongoDB.Bson.Serialization.Attributes;
 
-using Quartz.Impl;
 using Quartz.Spi.MongoJobStore.Models.Id;
 
 namespace Quartz.Spi.MongoJobStore.Models;
@@ -40,17 +39,20 @@ internal class JobDetail
 
     public bool RequestsRecovery { get; set; }
 
+
+    //public string SchedulerName { get; set; }
+
+
     public IJobDetail GetJobDetail()
     {
         // The missing properties are figured out at runtime from the job type attributes
-        return new JobDetailImpl()
-        {
-            Key = new JobKey(Id.Name, Id.Group),
-            Description = Description,
-            JobType = JobType,
-            JobDataMap = JobDataMap,
-            Durable = Durable,
-            RequestsRecovery = RequestsRecovery,
-        };
+
+        return JobBuilder.Create(JobType)
+            .WithIdentity(new JobKey(Id.Name, Id.Group))
+            .WithDescription(Description)
+            .SetJobData(JobDataMap)
+            .StoreDurably(Durable)
+            .RequestRecovery(RequestsRecovery)
+            .Build();
     }
 }

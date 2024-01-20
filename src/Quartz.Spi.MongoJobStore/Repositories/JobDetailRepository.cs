@@ -15,7 +15,7 @@ internal class JobDetailRepository : BaseRepository<JobDetail>
     {
     }
 
-    public async Task<JobDetail> GetJob(JobKey jobKey)
+    public async Task<JobDetail?> GetJob(JobKey jobKey)
     {
         return await Collection.Find(detail => detail.Id == new JobDetailId(jobKey, InstanceName))
             .FirstOrDefaultAsync()
@@ -36,7 +36,7 @@ internal class JobDetailRepository : BaseRepository<JobDetail>
             .ConfigureAwait(false);
     }
 
-    public async Task<IEnumerable<string>> GetJobGroupNames()
+    public async Task<List<string>> GetJobGroupNames()
     {
         return await Collection.Distinct(detail => detail.Id.Group, detail => detail.Id.InstanceName == InstanceName)
             .ToListAsync()

@@ -37,7 +37,7 @@ internal class CalendarIntervalTrigger : Trigger
 
     public override ITrigger GetTrigger()
     {
-        var trigger = new CalendarIntervalTriggerImpl()
+        var trigger = new CalendarIntervalTriggerImpl
         {
             RepeatIntervalUnit = RepeatIntervalUnit,
             RepeatInterval = RepeatInterval,

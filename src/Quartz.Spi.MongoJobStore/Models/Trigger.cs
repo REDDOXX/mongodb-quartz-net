@@ -35,7 +35,7 @@ internal abstract class Trigger
 
     protected Trigger(ITrigger trigger, TriggerState state, string instanceName)
     {
-        Id = new TriggerId()
+        Id = new TriggerId
         {
             InstanceName = instanceName,
             Group = trigger.Key.Group,

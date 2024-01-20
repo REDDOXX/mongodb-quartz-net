@@ -10,7 +10,7 @@ namespace Quartz.Spi.MongoJobStore.Repositories;
 [CollectionName("pausedTriggerGroups")]
 internal class PausedTriggerGroupRepository : BaseRepository<PausedTriggerGroup>
 {
-    public PausedTriggerGroupRepository(IMongoDatabase database, string instanceName, string collectionPrefix = null)
+    public PausedTriggerGroupRepository(IMongoDatabase database, string instanceName, string? collectionPrefix = null)
         : base(database, instanceName, collectionPrefix)
     {
     }
@@ -33,7 +33,7 @@ internal class PausedTriggerGroupRepository : BaseRepository<PausedTriggerGroup>
     public async Task AddPausedTriggerGroup(string group)
     {
         await Collection.InsertOneAsync(
-                new PausedTriggerGroup()
+                new PausedTriggerGroup
                 {
                     Id = new PausedTriggerGroupId(group, InstanceName),
                 }

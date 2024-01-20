@@ -2,10 +2,15 @@ using System.Globalization;
 
 using Common.Logging;
 
+using JetBrains.Annotations;
+
+using Microsoft.Extensions.Logging;
+
 using MongoDB.Driver;
 
 using Quartz.Impl.AdoJobStore;
 using Quartz.Impl.Matchers;
+using Quartz.Logging;
 using Quartz.Spi.MongoJobStore.Models;
 using Quartz.Spi.MongoJobStore.Models.Id;
 using Quartz.Spi.MongoJobStore.Repositories;
@@ -15,6 +20,7 @@ using Calendar = Quartz.Spi.MongoJobStore.Models.Calendar;
 
 namespace Quartz.Spi.MongoJobStore;
 
+[PublicAPI]
 public class MongoDbJobStore : IJobStore
 {
     private const string KeySignalChangeForTxCompletion = "sigChangeForTxCompletion";
@@ -25,13 +31,14 @@ public class MongoDbJobStore : IJobStore
 
     private static readonly ILog Log = LogManager.GetLogger<MongoDbJobStore>();
     private static long _fireTriggerRecordCounter = DateTime.UtcNow.Ticks;
+
     private CalendarRepository _calendarRepository;
     private IMongoClient _client;
     private IMongoDatabase _database;
     private FiredTriggerRepository _firedTriggerRepository;
     private JobDetailRepository _jobDetailRepository;
     private LockManager _lockManager;
-    private MisfireHandler _misfireHandler;
+    private MisfireHandler? _misfireHandler;
     private TimeSpan _misfireThreshold = TimeSpan.FromMinutes(1);
     private PausedTriggerGroupRepository _pausedTriggerGroupRepository;
     private SchedulerId _schedulerId;
@@ -41,17 +48,6 @@ public class MongoDbJobStore : IJobStore
     private ISchedulerSignaler _schedulerSignaler;
     private TriggerRepository _triggerRepository;
 
-    static MongoDbJobStore()
-    {
-        JobStoreClassMap.RegisterClassMaps();
-    }
-
-    public MongoDbJobStore()
-    {
-        MaxMisfiresToHandleAtATime = 20;
-        RetryableActionErrorLogThreshold = 4;
-        DbRetryInterval = TimeSpan.FromSeconds(15);
-    }
 
     public string ConnectionString { get; set; }
     public string CollectionPrefix { get; set; }
@@ -116,6 +112,20 @@ public class MongoDbJobStore : IJobStore
     public string InstanceName { get; set; }
     public int ThreadPoolSize { get; set; }
 
+
+    static MongoDbJobStore()
+    {
+        JobStoreClassMap.RegisterClassMaps();
+    }
+
+    public MongoDbJobStore()
+    {
+        MaxMisfiresToHandleAtATime = 20;
+        RetryableActionErrorLogThreshold = 4;
+        DbRetryInterval = TimeSpan.FromSeconds(15);
+    }
+
+
     public Task Initialize(ITypeLoadHelper loadHelper, ISchedulerSignaler signaler, CancellationToken token = default)
     {
         _schedulerSignaler = signaler;
@@ -125,6 +135,7 @@ public class MongoDbJobStore : IJobStore
         var url = new MongoUrl(ConnectionString);
         _client = new MongoClient(ConnectionString);
         _database = _client.GetDatabase(url.DatabaseName);
+
         _lockManager = new LockManager(_database, InstanceName, CollectionPrefix);
         _schedulerRepository = new SchedulerRepository(_database, InstanceName, CollectionPrefix);
         _jobDetailRepository = new JobDetailRepository(_database, InstanceName, CollectionPrefix);
@@ -269,6 +280,7 @@ public class MongoDbJobStore : IJobStore
                 {
                     await StoreJobInternal(job, replace).ConfigureAwait(false);
                     foreach (var trigger in triggersAndJobs[job])
+                    {
                         await StoreTriggerInternal(
                                 (IOperableTrigger)trigger,
                                 job,
@@ -279,6 +291,7 @@ public class MongoDbJobStore : IJobStore
                                 cancellationToken
                             )
                             .ConfigureAwait(false);
+                    }
                 }
             }
         }
@@ -322,7 +335,7 @@ public class MongoDbJobStore : IJobStore
         }
     }
 
-    public async Task<IJobDetail> RetrieveJob(JobKey jobKey, CancellationToken token = default)
+    public async Task<IJobDetail?> RetrieveJob(JobKey jobKey, CancellationToken token = default)
     {
         var result = await _jobDetailRepository.GetJob(jobKey).ConfigureAwait(false);
         return result?.GetJobDetail();
@@ -372,6 +385,7 @@ public class MongoDbJobStore : IJobStore
         {
             using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
             {
+                // TODO: REFAC
                 return triggerKeys.Aggregate(
                     true,
                     (current, triggerKey) => current && RemoveTriggerInternal(triggerKey).Result
@@ -403,7 +417,7 @@ public class MongoDbJobStore : IJobStore
         }
     }
 
-    public async Task<IOperableTrigger> RetrieveTrigger(TriggerKey triggerKey, CancellationToken token = default)
+    public async Task<IOperableTrigger?> RetrieveTrigger(TriggerKey triggerKey, CancellationToken token = default)
     {
         var result = await _triggerRepository.GetTrigger(triggerKey).ConfigureAwait(false);
         return result?.GetTrigger() as IOperableTrigger;
@@ -481,7 +495,7 @@ public class MongoDbJobStore : IJobStore
         }
     }
 
-    public async Task<ICalendar> RetrieveCalendar(string calName, CancellationToken token = default)
+    public async Task<ICalendar?> RetrieveCalendar(string calName, CancellationToken token = default)
     {
         var result = await _calendarRepository.GetCalendar(calName).ConfigureAwait(false);
         return result?.GetCalendar();
@@ -507,9 +521,7 @@ public class MongoDbJobStore : IJobStore
         CancellationToken token = default
     )
     {
-        return (IReadOnlyCollection<JobKey>)new HashSet<JobKey>(
-            await _jobDetailRepository.GetJobsKeys(matcher).ConfigureAwait(false)
-        );
+        return new HashSet<JobKey>(await _jobDetailRepository.GetJobsKeys(matcher).ConfigureAwait(false));
     }
 
     public async Task<IReadOnlyCollection<TriggerKey>> GetTriggerKeys(
@@ -522,7 +534,7 @@ public class MongoDbJobStore : IJobStore
 
     public async Task<IReadOnlyCollection<string>> GetJobGroupNames(CancellationToken token = default)
     {
-        return (IReadOnlyCollection<string>)await _jobDetailRepository.GetJobGroupNames().ConfigureAwait(false);
+        return await _jobDetailRepository.GetJobGroupNames().ConfigureAwait(false);
     }
 
     public async Task<IReadOnlyCollection<string>> GetTriggerGroupNames(CancellationToken token = default)
@@ -532,7 +544,7 @@ public class MongoDbJobStore : IJobStore
 
     public async Task<IReadOnlyCollection<string>> GetCalendarNames(CancellationToken token = default)
     {
-        return (IReadOnlyCollection<string>)await _calendarRepository.GetCalendarNames().ConfigureAwait(false);
+        return await _calendarRepository.GetCalendarNames().ConfigureAwait(false);
     }
 
     public async Task<IReadOnlyCollection<IOperableTrigger>> GetTriggersForJob(
@@ -565,10 +577,7 @@ public class MongoDbJobStore : IJobStore
         };
     }
 
-    public Task ResetTriggerFromErrorState(
-        TriggerKey triggerKey,
-        CancellationToken cancellationToken = new CancellationToken()
-    )
+    public Task ResetTriggerFromErrorState(TriggerKey triggerKey, CancellationToken cancellationToken = new())
     {
         throw new NotImplementedException();
     }
@@ -614,7 +623,9 @@ public class MongoDbJobStore : IJobStore
             {
                 var triggers = await GetTriggersForJob(jobKey, token).ConfigureAwait(false);
                 foreach (var operableTrigger in triggers)
+                {
                     await PauseTriggerInternal(operableTrigger.Key).ConfigureAwait(false);
+                }
             }
         }
         catch (Exception ex)
@@ -637,7 +648,9 @@ public class MongoDbJobStore : IJobStore
                 {
                     var triggers = await _triggerRepository.GetTriggers(jobKey).ConfigureAwait(false);
                     foreach (var trigger in triggers)
+                    {
                         await PauseTriggerInternal(trigger.GetTrigger().Key).ConfigureAwait(false);
+                    }
                 }
 
                 return jobKeys.Select(key => key.Group).Distinct().ToList();
@@ -684,9 +697,7 @@ public class MongoDbJobStore : IJobStore
 
     public async Task<IReadOnlyCollection<string>> GetPausedTriggerGroups(CancellationToken cancellationToken = default)
     {
-        return (IReadOnlyCollection<string>)new HashSet<string>(
-            await _pausedTriggerGroupRepository.GetPausedTriggerGroups().ConfigureAwait(false)
-        );
+        return new HashSet<string>(await _pausedTriggerGroupRepository.GetPausedTriggerGroups().ConfigureAwait(false));
     }
 
     public async Task ResumeJob(JobKey jobKey, CancellationToken cancellationToken = default)
@@ -733,7 +744,7 @@ public class MongoDbJobStore : IJobStore
                         .ConfigureAwait(false);
                 }
 
-                return (IReadOnlyCollection<string>)new HashSet<string>(jobKeys.Select(key => key.Group));
+                return new HashSet<string>(jobKeys.Select(key => key.Group));
             }
         }
         catch (AggregateException ex)
@@ -922,13 +933,17 @@ public class MongoDbJobStore : IJobStore
         {
             case Models.TriggerState.Waiting:
             case Models.TriggerState.Acquired:
+            {
                 await _triggerRepository.UpdateTriggerState(triggerKey, Models.TriggerState.Paused)
                     .ConfigureAwait(false);
                 break;
+            }
             case Models.TriggerState.Blocked:
+            {
                 await _triggerRepository.UpdateTriggerState(triggerKey, Models.TriggerState.PausedBlocked)
                     .ConfigureAwait(false);
                 break;
+            }
         }
     }
 
@@ -961,12 +976,14 @@ public class MongoDbJobStore : IJobStore
         }
 
         foreach (var triggerGroup in triggerGroups)
+        {
             if (!await _pausedTriggerGroupRepository.IsTriggerGroupPaused(triggerGroup).ConfigureAwait(false))
             {
                 await _pausedTriggerGroupRepository.AddPausedTriggerGroup(triggerGroup).ConfigureAwait(false);
             }
+        }
 
-        return (IReadOnlyCollection<string>)new HashSet<string>(triggerGroups);
+        return new HashSet<string>(triggerGroups);
     }
 
     private async Task PauseAllInternal()
@@ -989,6 +1006,7 @@ public class MongoDbJobStore : IJobStore
     private async Task<bool> ReplaceTriggerInternal(TriggerKey triggerKey, IOperableTrigger newTrigger)
     {
         var trigger = await _triggerRepository.GetTrigger(triggerKey).ConfigureAwait(false);
+
         var result = await _jobDetailRepository.GetJob(trigger.JobKey).ConfigureAwait(false);
         var job = result?.GetJobDetail();
 
@@ -1015,7 +1033,7 @@ public class MongoDbJobStore : IJobStore
         return result > 0;
     }
 
-    private async Task<bool> RemoveTriggerInternal(TriggerKey key, IJobDetail job = null)
+    private async Task<bool> RemoveTriggerInternal(TriggerKey key, IJobDetail? job = null)
     {
         var trigger = await _triggerRepository.GetTrigger(key);
         if (trigger == null)
@@ -1181,7 +1199,7 @@ public class MongoDbJobStore : IJobStore
 
     private async Task StoreTriggerInternal(
         IOperableTrigger newTrigger,
-        IJobDetail job,
+        IJobDetail? job,
         bool replaceExisting,
         Models.TriggerState state,
         bool forceState,
@@ -1268,7 +1286,7 @@ public class MongoDbJobStore : IJobStore
         return currentState;
     }
 
-    private async Task<TriggerFiredBundle> TriggerFiredInternal(IOperableTrigger trigger)
+    private async Task<TriggerFiredBundle?> TriggerFiredInternal(IOperableTrigger trigger)
     {
         var state = await _triggerRepository.GetTriggerState(trigger.Key).ConfigureAwait(false);
         if (state != Models.TriggerState.Acquired)
@@ -1282,7 +1300,7 @@ public class MongoDbJobStore : IJobStore
             return null;
         }
 
-        ICalendar calendar = null;
+        ICalendar? calendar = null;
         if (trigger.CalendarName != null)
         {
             calendar = (await _calendarRepository.GetCalendar(trigger.CalendarName).ConfigureAwait(false))
@@ -1391,7 +1409,7 @@ public class MongoDbJobStore : IJobStore
     {
         var operableTrigger = (IOperableTrigger)trigger.GetTrigger();
 
-        ICalendar cal = null;
+        ICalendar? cal = null;
         if (trigger.CalendarName != null)
         {
             cal = (await _calendarRepository.GetCalendar(trigger.CalendarName).ConfigureAwait(false)).GetCalendar();
@@ -1443,7 +1461,7 @@ public class MongoDbJobStore : IJobStore
             var keys = await _triggerRepository.GetTriggersToAcquire(noLaterThan + timeWindow, MisfireTime, maxCount)
                 .ConfigureAwait(false);
 
-            if (!keys.Any())
+            if (keys.Count == 0)
             {
                 return acquiredTriggers;
             }
@@ -1457,7 +1475,7 @@ public class MongoDbJobStore : IJobStore
                 }
 
                 var jobKey = nextTrigger.JobKey;
-                JobDetail jobDetail;
+                JobDetail? jobDetail;
                 try
                 {
                     jobDetail = await _jobDetailRepository.GetJob(jobKey).ConfigureAwait(false);
@@ -1471,12 +1489,10 @@ public class MongoDbJobStore : IJobStore
 
                 if (jobDetail.ConcurrentExecutionDisallowed)
                 {
-                    if (acquiredJobKeysForNoConcurrentExec.Contains(jobKey))
+                    if (!acquiredJobKeysForNoConcurrentExec.Add(jobKey))
                     {
                         continue;
                     }
-
-                    acquiredJobKeysForNoConcurrentExec.Add(jobKey);
                 }
 
                 var result = await _triggerRepository.UpdateTriggerState(
@@ -1532,6 +1548,7 @@ public class MongoDbJobStore : IJobStore
             switch (triggerInstCode)
             {
                 case SchedulerInstruction.DeleteTrigger:
+                {
                     if (!trigger.GetNextFireTimeUtc().HasValue)
                     {
                         var trig = await _triggerRepository.GetTrigger(trigger.Key).ConfigureAwait(false);
@@ -1547,28 +1564,37 @@ public class MongoDbJobStore : IJobStore
                     }
 
                     break;
+                }
                 case SchedulerInstruction.SetTriggerComplete:
+                {
                     await _triggerRepository.UpdateTriggerState(trigger.Key, Models.TriggerState.Complete)
                         .ConfigureAwait(false);
                     SignalSchedulingChangeOnTxCompletion(SchedulingSignalDateTime);
                     break;
+                }
                 case SchedulerInstruction.SetTriggerError:
+                {
                     Log.Info("Trigger " + trigger.Key + " set to ERROR state.");
                     await _triggerRepository.UpdateTriggerState(trigger.Key, Models.TriggerState.Error)
                         .ConfigureAwait(false);
                     SignalSchedulingChangeOnTxCompletion(SchedulingSignalDateTime);
                     break;
+                }
                 case SchedulerInstruction.SetAllJobTriggersComplete:
+                {
                     await _triggerRepository.UpdateTriggersStates(trigger.JobKey, Models.TriggerState.Complete)
                         .ConfigureAwait(false);
                     SignalSchedulingChangeOnTxCompletion(SchedulingSignalDateTime);
                     break;
+                }
                 case SchedulerInstruction.SetAllJobTriggersError:
+                {
                     Log.Info("All triggers of Job " + trigger.JobKey + " set to ERROR state.");
                     await _triggerRepository.UpdateTriggersStates(trigger.JobKey, Models.TriggerState.Error)
                         .ConfigureAwait(false);
                     SignalSchedulingChangeOnTxCompletion(SchedulingSignalDateTime);
                     break;
+                }
             }
 
             if (jobDetail.ConcurrentExecutionDisallowed)
@@ -1667,19 +1693,23 @@ public class MongoDbJobStore : IJobStore
         );
 
         foreach (var recoveringJobTrigger in recoveringJobTriggers)
+        {
             if (await _jobDetailRepository.JobExists(recoveringJobTrigger.JobKey).ConfigureAwait(false))
             {
                 recoveringJobTrigger.ComputeFirstFireTimeUtc(null);
                 await StoreTriggerInternal(recoveringJobTrigger, null, false, Models.TriggerState.Waiting, false, true)
                     .ConfigureAwait(false);
             }
+        }
 
         Log.Info("Recovery complete");
 
         var completedTriggers =
             await _triggerRepository.GetTriggerKeys(Models.TriggerState.Complete).ConfigureAwait(false);
         foreach (var completedTrigger in completedTriggers)
+        {
             await RemoveTriggerInternal(completedTrigger).ConfigureAwait(false);
+        }
 
         Log.Info(
             string.Format(CultureInfo.InvariantCulture, "Removed {0} 'complete' triggers.", completedTriggers.Count)

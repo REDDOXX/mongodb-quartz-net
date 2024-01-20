@@ -22,9 +22,10 @@ internal class SimpleTrigger : Trigger
 
     public int TimesTriggered { get; set; }
 
+
     public override ITrigger GetTrigger()
     {
-        var trigger = new SimpleTriggerImpl()
+        var trigger = new SimpleTriggerImpl
         {
             RepeatCount = RepeatCount,
             RepeatInterval = RepeatInterval,

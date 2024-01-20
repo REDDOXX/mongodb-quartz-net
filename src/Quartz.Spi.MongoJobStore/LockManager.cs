@@ -1,4 +1,4 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 
 using Common.Logging;
 
@@ -21,10 +21,9 @@ internal class LockManager : IDisposable
 
     private readonly LockRepository _lockRepository;
 
-    private readonly ConcurrentDictionary<LockType, LockInstance> _pendingLocks =
-        new ConcurrentDictionary<LockType, LockInstance>();
+    private readonly ConcurrentDictionary<LockType, LockInstance> _pendingLocks = new();
 
-    private readonly SemaphoreSlim _pendingLocksSemaphore = new SemaphoreSlim(1);
+    private readonly SemaphoreSlim _pendingLocksSemaphore = new(1);
 
     private bool _disposed;
 

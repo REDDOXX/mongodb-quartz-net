@@ -1,14 +1,16 @@
-﻿using MongoDB.Bson;
+using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 using MongoDB.Bson.Serialization.Serializers;
+
+using Quartz.Simpl;
 
 namespace Quartz.Spi.MongoJobStore.Serializers;
 
 internal class JobDataMapSerializer : SerializerBase<JobDataMap>
 {
-    private readonly DefaultObjectSerializer _objectSerializer = new DefaultObjectSerializer();
+    private readonly JsonObjectSerializer _objectSerializer = new();
 
-    public override void Serialize(BsonSerializationContext context, BsonSerializationArgs args, JobDataMap value)
+    public override void Serialize(BsonSerializationContext context, BsonSerializationArgs args, JobDataMap? value)
     {
         if (value == null)
         {

@@ -1,5 +1,7 @@
 using System.Globalization;
 
+using JetBrains.Annotations;
+
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 
@@ -8,6 +10,7 @@ using Quartz.Spi.MongoJobStore.Models.Id;
 
 namespace Quartz.Spi.MongoJobStore.Models;
 
+[UsedImplicitly]
 internal class FiredTrigger
 {
     public FiredTrigger()

@@ -21,7 +21,7 @@ internal class CronTrigger : Trigger
 
     public override ITrigger GetTrigger()
     {
-        var trigger = new CronTriggerImpl()
+        var trigger = new CronTriggerImpl
         {
             CronExpressionString = CronExpression,
             TimeZone = TimeZoneInfo.FindSystemTimeZoneById(TimeZone),

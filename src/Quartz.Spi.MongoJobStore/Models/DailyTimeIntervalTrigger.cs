@@ -50,7 +50,7 @@ internal class DailyTimeIntervalTrigger : Trigger
             RepeatInterval = RepeatInterval,
             StartTimeOfDay = StartTimeOfDay ?? new TimeOfDay(0, 0, 0),
             EndTimeOfDay = EndTimeOfDay ?? new TimeOfDay(23, 59, 59),
-            DaysOfWeek = (IReadOnlyCollection<DayOfWeek>)new HashSet<DayOfWeek>(DaysOfWeek),
+            DaysOfWeek = new HashSet<DayOfWeek>(DaysOfWeek),
             TimesTriggered = TimesTriggered,
             TimeZone = TimeZoneInfo.FindSystemTimeZoneById(TimeZone),
         };

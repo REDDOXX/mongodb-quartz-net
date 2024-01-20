@@ -1,4 +1,4 @@
-﻿#region License
+#region License
 
 /*
  * All content copyright Terracotta, Inc., unless otherwise indicated. All rights reserved.
@@ -29,13 +29,8 @@
  */
 
 
-
-// Workaround for getting off remoting removed in NET Core: http://www.cazzulino.com/callcontext-netstandard-netcore.html
-#if NET452
-using System.Runtime.Remoting.Messaging;
-#elif NET462 || NETSTANDARD2_0
+using System.Collections.Concurrent;
 using System.Threading;
-#endif
 
 namespace Quartz.Spi.MongoJobStore.Util;
 
@@ -47,24 +42,17 @@ namespace Quartz.Spi.MongoJobStore.Util;
 /// <author>Marko Lahma .NET</author>
 public static class LogicalThreadContext
 {
+    private static readonly ConcurrentDictionary<string, AsyncLocal<object>> State = new();
+
+
     /// <summary>
     /// Retrieves an object with the specified name.
     /// </summary>
     /// <param name="name">The name of the item.</param>
     /// <returns>The object in the call context associated with the specified name or null if no object has been stored previously</returns>
-
-#if NET462 || NETSTANDARD2_0
-        static ConcurrentDictionary<string, AsyncLocal<object>> state =
- new ConcurrentDictionary<string, AsyncLocal<object>>();
-#endif
-
-    public static T GetData<T>(string name)
+    public static T? GetData<T>(string name)
     {
-#if NET452
-            return (T)CallContext.GetData(name);
-#elif NET462 || NETSTANDARD2_0
-            return state.TryGetValue(name, out AsyncLocal<object> data) ? (T)data.Value : default(T);
-#endif
+        return State.TryGetValue(name, out var data) ? (T?)data.Value : default;
     }
 
     /// <summary>
@@ -74,11 +62,7 @@ public static class LogicalThreadContext
     /// <param name="value">The object to store in the call context.</param>
     public static void SetData(string name, object value)
     {
-#if NET452
-            CallContext.SetData(name, value);
-#elif NET462 || NETSTANDARD2_0
-            state.GetOrAdd(name, _ => new AsyncLocal<object>()).Value = value;
-#endif
+        State.GetOrAdd(name, _ => new AsyncLocal<object>()).Value = value;
     }
 
     /// <summary>
@@ -87,10 +71,6 @@ public static class LogicalThreadContext
     /// <param name="name">The name of the data slot to empty.</param>
     public static void FreeNamedDataSlot(string name)
     {
-#if NET452
-            CallContext.FreeNamedDataSlot(name);
-#elif NET462 || NETSTANDARD2_0
-            state.TryRemove(name, out AsyncLocal<object> discard);
-#endif
+        State.TryRemove(name, out _);
     }
 }

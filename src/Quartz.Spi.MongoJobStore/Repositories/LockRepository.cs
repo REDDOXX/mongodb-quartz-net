@@ -12,7 +12,7 @@ internal class LockRepository : BaseRepository<Lock>
 {
     private static readonly ILog Log = LogManager.GetLogger<LockRepository>();
 
-    public LockRepository(IMongoDatabase database, string instanceName, string collectionPrefix = null)
+    public LockRepository(IMongoDatabase database, string instanceName, string? collectionPrefix = null)
         : base(database, instanceName, collectionPrefix)
     {
     }
@@ -65,7 +65,7 @@ internal class LockRepository : BaseRepository<Lock>
     {
         await Collection.Indexes.CreateOneAsync(
                 IndexBuilder.Ascending(@lock => @lock.AquiredAt),
-                new CreateIndexOptions()
+                new CreateIndexOptions
                 {
                     ExpireAfter = TimeSpan.FromSeconds(30),
                 }

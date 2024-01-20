@@ -10,7 +10,7 @@ namespace Quartz.Spi.MongoJobStore.Repositories;
 [CollectionName("triggers")]
 internal class TriggerRepository : BaseRepository<Trigger>
 {
-    public TriggerRepository(IMongoDatabase database, string instanceName, string collectionPrefix = null)
+    public TriggerRepository(IMongoDatabase database, string instanceName, string? collectionPrefix = null)
         : base(database, instanceName, collectionPrefix)
     {
     }
