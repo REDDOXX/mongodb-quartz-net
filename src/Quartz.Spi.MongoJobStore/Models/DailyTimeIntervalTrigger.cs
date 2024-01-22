@@ -1,3 +1,5 @@
+using JetBrains.Annotations;
+
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 
@@ -5,6 +7,7 @@ using Quartz.Impl.Triggers;
 
 namespace Quartz.Spi.MongoJobStore.Models;
 
+[UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
 internal class DailyTimeIntervalTrigger : Trigger
 {
     public int RepeatCount { get; set; }
@@ -14,9 +17,9 @@ internal class DailyTimeIntervalTrigger : Trigger
 
     public int RepeatInterval { get; set; }
 
-    public TimeOfDay StartTimeOfDay { get; set; }
+    public TimeOfDay? StartTimeOfDay { get; set; }
 
-    public TimeOfDay EndTimeOfDay { get; set; }
+    public TimeOfDay? EndTimeOfDay { get; set; }
 
     public HashSet<DayOfWeek> DaysOfWeek { get; set; }
 

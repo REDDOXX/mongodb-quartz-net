@@ -14,7 +14,7 @@ internal class JobDetail
 
     public string Description { get; set; }
 
-    public Type JobType { get; set; } // TODO: Serialize as string -> GetStorableJobTypeName(job.JobType)
+    public Type JobType { get; set; }
 
     public JobDataMap JobDataMap { get; set; }
 
@@ -26,8 +26,6 @@ internal class JobDetail
 
     public bool RequestsRecovery { get; set; }
 
-
-    //public string SchedulerName { get; set; }
 
     public JobDetail()
     {

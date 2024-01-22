@@ -7,6 +7,7 @@ namespace Quartz.Spi.MongoJobStore.Repositories;
 internal abstract class BaseRepository<TDocument>
 {
     private static readonly ILog Log = LogManager.GetLogger(typeof(BaseRepository<>));
+
     private static readonly HashSet<string> InitializedCollections = new();
 
     protected BaseRepository(IMongoDatabase database, string instanceName, string? collectionPrefix = null)

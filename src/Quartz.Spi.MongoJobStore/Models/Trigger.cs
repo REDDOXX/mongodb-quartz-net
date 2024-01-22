@@ -1,3 +1,5 @@
+using JetBrains.Annotations;
+
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 
@@ -20,6 +22,7 @@ internal enum TriggerState
     Deleted,
 }
 
+[UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
 [BsonDiscriminator(RootClass = true)]
 [BsonKnownTypes(
     typeof(CronTrigger),

@@ -1,5 +1,3 @@
-using System.Diagnostics;
-
 using FluentAssertions;
 
 using Quartz.Impl.Matchers;
@@ -24,17 +22,10 @@ public class MongoDbJobStoreTests : BaseStoreTests, IDisposable
     public void Dispose()
     {
         _scheduler.Shutdown().Wait();
+
+        GC.SuppressFinalize(this);
     }
 
-    [Fact]
-    public void HelloWorldTest()
-    {
-        // TODO: Remove me
-
-        var hello = StdAdoConstants.SqlInsertJobDetail;
-
-        Debugger.Break();
-    }
 
     [Fact]
     public async Task AddJobTest()

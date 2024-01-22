@@ -20,5 +20,5 @@ internal class Lock
 
     public string InstanceId { get; set; }
 
-    public DateTime AquiredAt { get; set; }
+    public DateTime AcquiredAt { get; set; }
 }

@@ -1,15 +1,18 @@
+using JetBrains.Annotations;
+
 using MongoDB.Bson.Serialization.Attributes;
 
 using Quartz.Spi.MongoJobStore.Models.Id;
 
 namespace Quartz.Spi.MongoJobStore.Models;
 
+[UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
 internal class Calendar
 {
     [BsonId]
-    public CalendarId Id { get; set; }
+    public CalendarId Id { get; init; }
 
-    public byte[] Content { get; set; }
+    public byte[] Content { get; init; } // BSON Document
 
 
     public Calendar()

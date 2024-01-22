@@ -21,7 +21,7 @@ internal class LockRepository : BaseRepository<Lock>
     {
         await Collection.Indexes.CreateOneAsync(
                 new CreateIndexModel<Lock>(
-                    IndexBuilder.Ascending(@lock => @lock.AquiredAt),
+                    IndexBuilder.Ascending(@lock => @lock.AcquiredAt),
                     new CreateIndexOptions
                     {
                         ExpireAfter = TimeSpan.FromSeconds(30),
@@ -42,7 +42,7 @@ internal class LockRepository : BaseRepository<Lock>
             {
                 Id = lockId,
                 InstanceId = instanceId,
-                AquiredAt = DateTime.Now,
+                AcquiredAt = DateTime.Now,
             };
 
             await Collection.InsertOneAsync(@lock).ConfigureAwait(false);

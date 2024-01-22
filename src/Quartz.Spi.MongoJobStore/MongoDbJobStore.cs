@@ -1,14 +1,16 @@
+using System.Diagnostics;
 using System.Globalization;
 
-using Common.Logging;
-
 using JetBrains.Annotations;
+
+using Microsoft.Extensions.Logging;
 
 using MongoDB.Driver;
 
 using Quartz.Impl.AdoJobStore;
 using Quartz.Impl.Matchers;
 using Quartz.Simpl;
+using Quartz.Spi.MongoJobStore.Database;
 using Quartz.Spi.MongoJobStore.Models;
 using Quartz.Spi.MongoJobStore.Models.Id;
 using Quartz.Spi.MongoJobStore.Repositories;
@@ -21,8 +23,8 @@ namespace Quartz.Spi.MongoJobStore;
 [PublicAPI]
 public class MongoDbJobStore : IJobStore
 {
+    private readonly IMongoDbJobStoreConnectionFactory _connectionFactory;
     internal static readonly JsonObjectSerializer ObjectSerializer = new();
-
 
     private const string KeySignalChangeForTxCompletion = "sigChangeForTxCompletion";
     private const string AllGroupsPaused = "_$_ALL_GROUPS_PAUSED_$_";
@@ -30,24 +32,27 @@ public class MongoDbJobStore : IJobStore
     private static readonly DateTimeOffset? SchedulingSignalDateTime =
         new DateTimeOffset(1982, 6, 28, 0, 0, 0, TimeSpan.FromSeconds(0));
 
-    private static readonly ILog Log = LogManager.GetLogger<MongoDbJobStore>();
     private static long _fireTriggerRecordCounter = DateTime.UtcNow.Ticks;
 
-    private CalendarRepository _calendarRepository;
-    private IMongoClient _client;
-    private IMongoDatabase _database;
-    private FiredTriggerRepository _firedTriggerRepository;
-    private JobDetailRepository _jobDetailRepository;
-    private LockManager _lockManager;
-    private MisfireHandler? _misfireHandler;
-    private TimeSpan _misfireThreshold = TimeSpan.FromMinutes(1);
-    private PausedTriggerGroupRepository _pausedTriggerGroupRepository;
-    private SchedulerId _schedulerId;
-    private SchedulerRepository _schedulerRepository;
-    private bool _schedulerRunning;
+    private readonly ILogger _logger = LogProvider.CreateLogger<MongoDbJobStore>();
 
     private ISchedulerSignaler _schedulerSignaler;
+    private readonly IMongoDatabase _database;
+
+    private CalendarRepository _calendarRepository;
+    private FiredTriggerRepository _firedTriggerRepository;
+    private JobDetailRepository _jobDetailRepository;
+    private PausedTriggerGroupRepository _pausedTriggerGroupRepository;
+    private SchedulerRepository _schedulerRepository;
     private TriggerRepository _triggerRepository;
+
+    private LockManager _lockManager;
+
+    private MisfireHandler? _misfireHandler;
+    private TimeSpan _misfireThreshold = TimeSpan.FromMinutes(1);
+
+    private SchedulerId _schedulerId;
+    private bool _schedulerRunning;
 
 
     public string ConnectionString { get; set; }
@@ -58,14 +63,14 @@ public class MongoDbJobStore : IJobStore
     ///     thread will try to recover at one time (within one transaction).  The
     ///     default is 20.
     /// </summary>
-    public int MaxMisfiresToHandleAtATime { get; set; }
+    public int MaxMisfiresToHandleAtATime { get; set; } = 20;
 
     /// <summary>
     ///     Gets or sets the database retry interval.
     /// </summary>
     /// <value>The db retry interval.</value>
     [TimeSpanParseRule(TimeSpanParseRule.Milliseconds)]
-    public TimeSpan DbRetryInterval { get; set; }
+    public TimeSpan DbRetryInterval { get; set; } = TimeSpan.FromSeconds(15);
 
     /// <summary>
     ///     The time span by which a trigger must have missed its
@@ -90,7 +95,7 @@ public class MongoDbJobStore : IJobStore
     /// <summary>
     ///     Gets or sets the number of retries before an error is logged for recovery operations.
     /// </summary>
-    public int RetryableActionErrorLogThreshold { get; set; }
+    public int RetryableActionErrorLogThreshold { get; set; } = 4;
 
     protected DateTimeOffset MisfireTime
     {
@@ -108,35 +113,32 @@ public class MongoDbJobStore : IJobStore
 
     public bool SupportsPersistence => true;
     public long EstimatedTimeToReleaseAndAcquireTrigger => 200;
-    public bool Clustered => false;
-    public string InstanceId { get; set; }
-    public string InstanceName { get; set; }
+    public bool Clustered { get; set; }
+    public string InstanceId { get; set; } = null!;
+    public string InstanceName { get; set; } = null!;
     public int ThreadPoolSize { get; set; }
 
-    static MongoDbJobStore()
+    public MongoDbJobStore(ILoggerFactory loggerFactory, IMongoDbJobStoreConnectionFactory connectionFactory)
     {
         JobStoreClassMap.RegisterClassMaps();
 
         ObjectSerializer.Initialize();
-    }
 
-    public MongoDbJobStore()
-    {
-        MaxMisfiresToHandleAtATime = 20;
-        RetryableActionErrorLogThreshold = 4;
-        DbRetryInterval = TimeSpan.FromSeconds(15);
+        _connectionFactory = connectionFactory;
+        _database = _connectionFactory.GetDatabase();
+
+        LogProvider.SetLogProvider(loggerFactory);
     }
 
 
     public Task Initialize(ITypeLoadHelper loadHelper, ISchedulerSignaler signaler, CancellationToken token = default)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(InstanceId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(InstanceName);
+
         _schedulerSignaler = signaler;
         _schedulerId = new SchedulerId(InstanceId, InstanceName);
-        Log.Trace($"Scheduler {_schedulerId} initialize");
-
-        var url = new MongoUrl(ConnectionString);
-        _client = new MongoClient(ConnectionString);
-        _database = _client.GetDatabase(url.DatabaseName);
+        _logger.LogTrace("Scheduler {SchedulerId} initialize", _schedulerId);
 
         _lockManager = new LockManager(_database, InstanceName, CollectionPrefix);
         _schedulerRepository = new SchedulerRepository(_database, InstanceName, CollectionPrefix);
@@ -151,7 +153,8 @@ public class MongoDbJobStore : IJobStore
 
     public async Task SchedulerStarted(CancellationToken token = default)
     {
-        Log.Trace($"Scheduler {_schedulerId} started");
+        _logger.LogTrace("Scheduler {SchedulerId} started", _schedulerId);
+
         await _schedulerRepository.AddScheduler(
                 new Scheduler
                 {
@@ -178,21 +181,22 @@ public class MongoDbJobStore : IJobStore
 
     public async Task SchedulerPaused(CancellationToken token = default)
     {
-        Log.Trace($"Scheduler {_schedulerId} paused");
+        _logger.LogTrace("Scheduler {SchedulerId} paused", _schedulerId);
         await _schedulerRepository.UpdateState(_schedulerId.Id, SchedulerState.Paused).ConfigureAwait(false);
         _schedulerRunning = false;
     }
 
     public async Task SchedulerResumed(CancellationToken token = default)
     {
-        Log.Trace($"Scheduler {_schedulerId} resumed");
+        _logger.LogTrace("Scheduler {SchedulerId} resumed", _schedulerId);
         await _schedulerRepository.UpdateState(_schedulerId.Id, SchedulerState.Resumed).ConfigureAwait(false);
         _schedulerRunning = true;
     }
 
     public async Task Shutdown(CancellationToken token = default)
     {
-        Log.Trace($"Scheduler {_schedulerId} shutdown");
+        _logger.LogTrace("Scheduler {SchedulerId} shutdown", _schedulerId);
+
         if (_misfireHandler != null)
         {
             _misfireHandler.Shutdown();
@@ -851,7 +855,7 @@ public class MongoDbJobStore : IJobStore
                     }
                     catch (Exception ex)
                     {
-                        Log.Error($"Caught exception: {ex.Message}", ex);
+                        _logger.LogError(ex, "Caught exception: {Message}", ex.Message);
                         result = new TriggerFiredResult(ex);
                     }
 
@@ -902,7 +906,7 @@ public class MongoDbJobStore : IJobStore
             var misfireCount = await _triggerRepository.GetMisfireCount(MisfireTime.UtcDateTime).ConfigureAwait(false);
             if (misfireCount == 0)
             {
-                Log.Debug("Found 0 triggers that missed their scheduled fire-time.");
+                _logger.LogDebug("Found 0 triggers that missed their scheduled fire-time.");
             }
             else
             {
@@ -1576,7 +1580,7 @@ public class MongoDbJobStore : IJobStore
                 }
                 case SchedulerInstruction.SetTriggerError:
                 {
-                    Log.Info("Trigger " + trigger.Key + " set to ERROR state.");
+                    _logger.LogInformation("Trigger {Key} set to ERROR state.", trigger.Key);
                     await _triggerRepository.UpdateTriggerState(trigger.Key, Models.TriggerState.Error)
                         .ConfigureAwait(false);
                     SignalSchedulingChangeOnTxCompletion(SchedulingSignalDateTime);
@@ -1591,7 +1595,7 @@ public class MongoDbJobStore : IJobStore
                 }
                 case SchedulerInstruction.SetAllJobTriggersError:
                 {
-                    Log.Info("All triggers of Job " + trigger.JobKey + " set to ERROR state.");
+                    _logger.LogInformation("All triggers of Job {JobKey} set to ERROR state.", trigger.JobKey);
                     await _triggerRepository.UpdateTriggersStates(trigger.JobKey, Models.TriggerState.Error)
                         .ConfigureAwait(false);
                     SignalSchedulingChangeOnTxCompletion(SchedulingSignalDateTime);
@@ -1676,7 +1680,7 @@ public class MongoDbJobStore : IJobStore
             .UpdateTriggersStates(Models.TriggerState.Paused, Models.TriggerState.PausedBlocked)
             .ConfigureAwait(false);
 
-        Log.Info("Freed " + result + " triggers from 'acquired' / 'blocked' state.");
+        _logger.LogInformation("Freed {Count} triggers from 'acquired' / 'blocked' state.", result);
 
         await RecoverMisfiredJobsInternal(true).ConfigureAwait(false);
 
@@ -1688,10 +1692,9 @@ public class MongoDbJobStore : IJobStore
             );
         var recoveringJobTriggers = (await Task.WhenAll(results).ConfigureAwait(false)).ToList();
 
-        Log.Info(
-            "Recovering " +
-            recoveringJobTriggers.Count +
-            " jobs that were in-progress at the time of the last shut-down."
+        _logger.LogInformation(
+            "Recovering {Count} jobs that were in-progress at the time of the last shut-down.",
+            recoveringJobTriggers.Count
         );
 
         foreach (var recoveringJobTrigger in recoveringJobTriggers)
@@ -1704,7 +1707,7 @@ public class MongoDbJobStore : IJobStore
             }
         }
 
-        Log.Info("Recovery complete");
+        _logger.LogInformation("Recovery complete");
 
         var completedTriggers =
             await _triggerRepository.GetTriggerKeys(Models.TriggerState.Complete).ConfigureAwait(false);
@@ -1713,12 +1716,12 @@ public class MongoDbJobStore : IJobStore
             await RemoveTriggerInternal(completedTrigger).ConfigureAwait(false);
         }
 
-        Log.Info(
+        _logger.LogInformation(
             string.Format(CultureInfo.InvariantCulture, "Removed {0} 'complete' triggers.", completedTriggers.Count)
         );
 
         result = await _firedTriggerRepository.DeleteFiredTriggersByInstanceId(InstanceId).ConfigureAwait(false);
-        Log.Info("Removed " + result + " stale fired job entries.");
+        _logger.LogInformation("Removed {Count} stale fired job entries.", result);
     }
 
     private async Task<RecoverMisfiredJobsResult> RecoverMisfiredJobsInternal(bool recovering)
@@ -1734,20 +1737,22 @@ public class MongoDbJobStore : IJobStore
 
         if (hasMoreMisfiredTriggers)
         {
-            Log.Info(
-                "Handling the first " +
-                misfiredTriggers.Count +
-                " triggers that missed their scheduled fire-time.  " +
-                "More misfired triggers remain to be processed."
+            _logger.LogInformation(
+                "Handling the first {Count} triggers that missed their scheduled fire-time.  " +
+                "More misfired triggers remain to be processed.",
+                misfiredTriggers.Count
             );
         }
         else if (misfiredTriggers.Count > 0)
         {
-            Log.Info("Handling " + misfiredTriggers.Count + " trigger(s) that missed their scheduled fire-time.");
+            _logger.LogInformation(
+                "Handling {Count} trigger(s) that missed their scheduled fire-time.",
+                misfiredTriggers.Count
+            );
         }
         else
         {
-            Log.Debug("Found 0 triggers that missed their scheduled fire-time.");
+            _logger.LogInformation("Found 0 triggers that missed their scheduled fire-time.");
             return RecoverMisfiredJobsResult.NoOp;
         }
 

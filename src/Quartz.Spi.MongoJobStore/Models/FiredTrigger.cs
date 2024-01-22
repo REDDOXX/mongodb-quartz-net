@@ -10,7 +10,7 @@ using Quartz.Spi.MongoJobStore.Models.Id;
 
 namespace Quartz.Spi.MongoJobStore.Models;
 
-[UsedImplicitly]
+[UsedImplicitly(ImplicitUseTargetFlags.Members)]
 internal class FiredTrigger
 {
     [BsonId]

@@ -1,32 +1,51 @@
-﻿using Common.Logging;
+using Common.Logging;
+
+using Microsoft.Extensions.Logging;
 
 using Quartz.Impl.AdoJobStore;
 using Quartz.Spi.MongoJobStore.Util;
 
 namespace Quartz.Spi.MongoJobStore;
 
-internal class MisfireHandler : QuartzThread
+internal class MisfireHandler
 {
-    private static readonly ILog Log = LogManager.GetLogger<MisfireHandler>();
+    private static readonly ILogger Log = LogProvider.CreateLogger<MisfireHandler>();
+
+    private readonly Thread _thread;
 
     private readonly MongoDbJobStore _jobStore;
     private bool _shutdown;
     private int _numFails;
 
+
     public MisfireHandler(MongoDbJobStore jobStore)
     {
         _jobStore = jobStore;
-        Name = $"QuartzScheduler_{jobStore.InstanceName}-{jobStore.InstanceId}_MisfireHandler";
-        IsBackground = true;
+
+        _thread = new Thread(Run)
+        {
+            Name = $"QuartzScheduler_{jobStore.InstanceName}-{jobStore.InstanceId}_MisfireHandler",
+            IsBackground = true,
+        };
     }
 
     public void Shutdown()
     {
         _shutdown = true;
-        Interrupt();
+        _thread.Interrupt();
     }
 
-    public override void Run()
+    public void Start()
+    {
+        _thread.Start();
+    }
+
+    public void Join()
+    {
+        _thread.Join();
+    }
+
+    private void Run()
     {
         while (!_shutdown)
         {
@@ -69,7 +88,7 @@ internal class MisfireHandler : QuartzThread
     {
         try
         {
-            Log.Debug("Scanning for misfires...");
+            Log.LogDebug("Scanning for misfires...");
             var result = _jobStore.DoRecoverMisfires().Result;
             _numFails = 0;
             return result;
@@ -78,7 +97,7 @@ internal class MisfireHandler : QuartzThread
         {
             if (_numFails % _jobStore.RetryableActionErrorLogThreshold == 0)
             {
-                Log.Error($"Error handling misfires: {ex.Message}", ex);
+                Log.LogError(ex, $"Error handling misfires: {ex.Message}", ex);
             }
 
             _numFails++;

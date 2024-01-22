@@ -1,4 +1,4 @@
-﻿using MongoDB.Bson;
+using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 using MongoDB.Bson.Serialization.Serializers;
 
@@ -73,8 +73,9 @@ internal static class JobStoreClassMap
             {
                 map.AutoMap();
                 var serializer =
-                    new EnumerableInterfaceImplementerSerializer<System.Collections.Generic.HashSet<DayOfWeek>,
-                        DayOfWeek>(new EnumSerializer<DayOfWeek>(BsonType.String));
+                    new EnumerableInterfaceImplementerSerializer<HashSet<DayOfWeek>, DayOfWeek>(
+                        new EnumSerializer<DayOfWeek>(BsonType.String)
+                    );
                 map.MapProperty(trigger => trigger.DaysOfWeek).SetSerializer(serializer);
             }
         );
