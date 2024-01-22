@@ -1,6 +1,6 @@
 namespace Quartz.Spi.MongoJobStore.Models.Id;
 
-internal class SchedulerId
+internal class SchedulerId // Todo: ValueType?
 {
     public string InstanceName { get; set; }
 

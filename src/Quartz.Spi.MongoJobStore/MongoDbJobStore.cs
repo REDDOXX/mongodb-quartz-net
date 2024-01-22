@@ -23,32 +23,34 @@ namespace Quartz.Spi.MongoJobStore;
 [PublicAPI]
 public class MongoDbJobStore : IJobStore
 {
-    private readonly IMongoDbJobStoreConnectionFactory _connectionFactory;
     internal static readonly JsonObjectSerializer ObjectSerializer = new();
 
     private const string KeySignalChangeForTxCompletion = "sigChangeForTxCompletion";
     private const string AllGroupsPaused = "_$_ALL_GROUPS_PAUSED_$_";
 
-    private static readonly DateTimeOffset? SchedulingSignalDateTime =
+    internal static readonly DateTimeOffset SchedulingSignalDateTime =
         new DateTimeOffset(1982, 6, 28, 0, 0, 0, TimeSpan.FromSeconds(0));
 
     private static long _fireTriggerRecordCounter = DateTime.UtcNow.Ticks;
 
     private readonly ILogger _logger = LogProvider.CreateLogger<MongoDbJobStore>();
 
-    private ISchedulerSignaler _schedulerSignaler;
+    private readonly IMongoDbJobStoreConnectionFactory _connectionFactory;
     private readonly IMongoDatabase _database;
 
-    private CalendarRepository _calendarRepository;
-    private FiredTriggerRepository _firedTriggerRepository;
-    private JobDetailRepository _jobDetailRepository;
-    private PausedTriggerGroupRepository _pausedTriggerGroupRepository;
-    private SchedulerRepository _schedulerRepository;
-    private TriggerRepository _triggerRepository;
+    private ISchedulerSignaler _schedulerSignaler = null!;
 
-    private LockManager _lockManager;
 
-    private MisfireHandler? _misfireHandler;
+    private CalendarRepository _calendarRepository = null!;
+    private FiredTriggerRepository _firedTriggerRepository = null!;
+    private JobDetailRepository _jobDetailRepository = null!;
+    private PausedTriggerGroupRepository _pausedTriggerGroupRepository = null!;
+    private SchedulerRepository _schedulerRepository = null!;
+    private TriggerRepository _triggerRepository = null!;
+
+    private LockManager _lockManager = null!;
+
+    private MisfireHandler? _misfireHandler = null!;
     private TimeSpan _misfireThreshold = TimeSpan.FromMinutes(1);
 
     private SchedulerId _schedulerId;
@@ -96,6 +98,28 @@ public class MongoDbJobStore : IJobStore
     ///     Gets or sets the number of retries before an error is logged for recovery operations.
     /// </summary>
     public int RetryableActionErrorLogThreshold { get; set; } = 4;
+
+    /// <summary>
+    /// Get whether the threads spawned by this JobStore should be
+    /// marked as daemon.  Possible threads include the <see cref="MisfireHandler" />
+    /// and the <see cref="ClusterManager"/>.
+    /// </summary>
+    /// <returns></returns>
+    public bool MakeThreadsDaemons { get; set; }
+
+    /// <summary>
+    /// Get or set the frequency at which this instance "checks-in"
+    /// with the other instances of the cluster. -- Affects the rate of
+    /// detecting failed instances.
+    /// </summary>
+    [TimeSpanParseRule(TimeSpanParseRule.Milliseconds)]
+    public TimeSpan ClusterCheckinInterval { get; set; }
+
+
+    protected internal DateTimeOffset LastCheckin { get; set; } = SystemTime.UtcNow();
+
+    protected bool firstCheckIn = true;
+
 
     protected DateTimeOffset MisfireTime
     {
@@ -1611,6 +1635,7 @@ public class MongoDbJobStore : IJobStore
                         Models.TriggerState.Blocked
                     )
                     .ConfigureAwait(false);
+
                 await _triggerRepository.UpdateTriggersStates(
                         jobDetail.Key,
                         Models.TriggerState.Paused,
@@ -1640,16 +1665,16 @@ public class MongoDbJobStore : IJobStore
         }
     }
 
-    protected virtual void SignalSchedulingChangeOnTxCompletion(DateTimeOffset? candidateNewNextFireTime)
+    protected virtual void SignalSchedulingChangeOnTxCompletion(DateTimeOffset candidateNewNextFireTime)
     {
         var sigTime = LogicalThreadContext.GetData<DateTimeOffset?>(KeySignalChangeForTxCompletion);
-        if (sigTime == null && candidateNewNextFireTime.HasValue)
+        if (sigTime == null)
         {
             LogicalThreadContext.SetData(KeySignalChangeForTxCompletion, candidateNewNextFireTime);
         }
         else
         {
-            if (sigTime == null || candidateNewNextFireTime < sigTime)
+            if (candidateNewNextFireTime < sigTime)
             {
                 LogicalThreadContext.SetData(KeySignalChangeForTxCompletion, candidateNewNextFireTime);
             }
@@ -1676,6 +1701,7 @@ public class MongoDbJobStore : IJobStore
                 Models.TriggerState.Blocked
             )
             .ConfigureAwait(false);
+
         result += await _triggerRepository
             .UpdateTriggersStates(Models.TriggerState.Paused, Models.TriggerState.PausedBlocked)
             .ConfigureAwait(false);
@@ -1702,6 +1728,7 @@ public class MongoDbJobStore : IJobStore
             if (await _jobDetailRepository.JobExists(recoveringJobTrigger.JobKey).ConfigureAwait(false))
             {
                 recoveringJobTrigger.ComputeFirstFireTimeUtc(null);
+
                 await StoreTriggerInternal(recoveringJobTrigger, null, false, Models.TriggerState.Waiting, false, true)
                     .ConfigureAwait(false);
             }
@@ -1711,14 +1738,13 @@ public class MongoDbJobStore : IJobStore
 
         var completedTriggers =
             await _triggerRepository.GetTriggerKeys(Models.TriggerState.Complete).ConfigureAwait(false);
+
         foreach (var completedTrigger in completedTriggers)
         {
             await RemoveTriggerInternal(completedTrigger).ConfigureAwait(false);
         }
 
-        _logger.LogInformation(
-            string.Format(CultureInfo.InvariantCulture, "Removed {0} 'complete' triggers.", completedTriggers.Count)
-        );
+        _logger.LogInformation("Removed {Count} 'complete' triggers.", completedTriggers.Count);
 
         result = await _firedTriggerRepository.DeleteFiredTriggersByInstanceId(InstanceId).ConfigureAwait(false);
         _logger.LogInformation("Removed {Count} stale fired job entries.", result);
@@ -1777,4 +1803,18 @@ public class MongoDbJobStore : IJobStore
 
         return new RecoverMisfiredJobsResult(hasMoreMisfiredTriggers, misfiredTriggers.Count, earliestNewTime);
     }
+
+
+    #region Cluster
+
+    protected internal virtual async Task<bool> DoCheckin(
+        Guid requestorId,
+        CancellationToken cancellationToken = default
+    )
+    {
+        // TODO
+        return true;
+    }
+
+    #endregion
 }

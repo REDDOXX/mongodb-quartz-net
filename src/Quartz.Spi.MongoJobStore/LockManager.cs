@@ -1,11 +1,12 @@
 using System.Collections.Concurrent;
 
-using Common.Logging;
+using Microsoft.Extensions.Logging;
 
 using MongoDB.Driver;
 
 using Quartz.Spi.MongoJobStore.Models;
 using Quartz.Spi.MongoJobStore.Repositories;
+using Quartz.Spi.MongoJobStore.Util;
 
 namespace Quartz.Spi.MongoJobStore;
 
@@ -17,7 +18,7 @@ internal class LockManager : IDisposable
 {
     private static readonly TimeSpan SleepThreshold = TimeSpan.FromMilliseconds(1000);
 
-    private static readonly ILog Log = LogManager.GetLogger<LockManager>();
+    private static readonly ILogger Log = LogProvider.CreateLogger<LockManager>();
 
     private readonly LockRepository _lockRepository;
 
@@ -110,7 +111,11 @@ internal class LockManager : IDisposable
     {
         if (!_pendingLocks.TryRemove(lockInstance.LockType, out _))
         {
-            Log.Warn($"Unable to remove pending lock {lockInstance.LockType} on {lockInstance.InstanceId}");
+            Log.LogWarning(
+                "Unable to remove pending lock {LockType} on {InstanceId}",
+                lockInstance.LockType,
+                lockInstance.InstanceId
+            );
         }
     }
 
@@ -120,16 +125,17 @@ internal class LockManager : IDisposable
 
         private bool _disposed;
 
+        public string InstanceId { get; }
+
+        public LockType LockType { get; }
+
+
         public LockInstance(LockManager lockManager, LockType lockType, string instanceId)
         {
             _lockManager = lockManager;
             LockType = lockType;
             InstanceId = instanceId;
         }
-
-        public string InstanceId { get; }
-
-        public LockType LockType { get; }
 
         public void Dispose()
         {

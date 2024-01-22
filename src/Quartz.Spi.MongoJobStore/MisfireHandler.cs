@@ -1,5 +1,3 @@
-using Common.Logging;
-
 using Microsoft.Extensions.Logging;
 
 using Quartz.Impl.AdoJobStore;

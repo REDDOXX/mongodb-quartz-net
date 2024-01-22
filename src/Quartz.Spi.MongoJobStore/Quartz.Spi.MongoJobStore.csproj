@@ -32,9 +32,6 @@
 		<PackageReference Include="Quartz" Version="3.8.0" />
 		<PackageReference Include="Quartz.Serialization.Json" Version="3.8.0" />
 	</ItemGroup>
-	<ItemGroup>
-		<PackageReference Include="Common.Logging" Version="3.4.1" />
-	</ItemGroup>
 
 
 	<ItemGroup>

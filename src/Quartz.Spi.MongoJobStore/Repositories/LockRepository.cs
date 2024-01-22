@@ -1,16 +1,17 @@
-using Common.Logging;
+using Microsoft.Extensions.Logging;
 
 using MongoDB.Driver;
 
 using Quartz.Spi.MongoJobStore.Models;
 using Quartz.Spi.MongoJobStore.Models.Id;
+using Quartz.Spi.MongoJobStore.Util;
 
 namespace Quartz.Spi.MongoJobStore.Repositories;
 
 [CollectionName("locks")]
 internal class LockRepository : BaseRepository<Lock>
 {
-    private static readonly ILog Log = LogManager.GetLogger<LockRepository>();
+    private readonly ILogger<LockRepository> _logger = LogProvider.CreateLogger<LockRepository>();
 
     public LockRepository(IMongoDatabase database, string instanceName, string? collectionPrefix = null)
         : base(database, instanceName, collectionPrefix)
@@ -35,7 +36,8 @@ internal class LockRepository : BaseRepository<Lock>
     public async Task<bool> TryAcquireLock(LockType lockType, string instanceId)
     {
         var lockId = new LockId(lockType, InstanceName);
-        Log.Trace($"Trying to acquire lock {lockId} on {instanceId}");
+
+        _logger.LogTrace("Trying to acquire lock {LockId} on {InstanceId}", lockId, instanceId);
         try
         {
             var @lock = new Lock
@@ -46,12 +48,13 @@ internal class LockRepository : BaseRepository<Lock>
             };
 
             await Collection.InsertOneAsync(@lock).ConfigureAwait(false);
-            Log.Trace($"Acquired lock {lockId} on {instanceId}");
+
+            _logger.LogTrace("Acquired lock {LockId} on {InstanceId}", lockId, instanceId);
             return true;
         }
         catch (MongoWriteException)
         {
-            Log.Trace($"Failed to acquire lock {lockId} on {instanceId}");
+            _logger.LogTrace("Failed to acquire lock {LockId} on {InstanceId}", lockId, instanceId);
             return false;
         }
     }
@@ -59,18 +62,22 @@ internal class LockRepository : BaseRepository<Lock>
     public async Task<bool> ReleaseLock(LockType lockType, string instanceId)
     {
         var lockId = new LockId(lockType, InstanceName);
-        Log.Trace($"Releasing lock {lockId} on {instanceId}");
+        _logger.LogTrace("Releasing lock {LockId} on {InstanceId}", lockId, instanceId);
 
         var filter = FilterBuilder.Where(@lock => @lock.Id == lockId && @lock.InstanceId == instanceId);
 
         var result = await Collection.DeleteOneAsync(filter).ConfigureAwait(false);
         if (result.DeletedCount <= 0)
         {
-            Log.Warn($"Failed to release lock {lockId} on {instanceId}. You do not own the lock.");
+            _logger.LogWarning(
+                "Failed to release lock {LockId} on {InstanceId}. You do not own the lock.",
+                lockId,
+                instanceId
+            );
             return false;
         }
 
-        Log.Trace($"Released lock {lockId} on {instanceId}");
+        _logger.LogTrace("Released lock {LockId} on {InstanceId}", lockId, instanceId);
         return true;
     }
 }

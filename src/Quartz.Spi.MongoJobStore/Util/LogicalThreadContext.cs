@@ -30,7 +30,6 @@
 
 
 using System.Collections.Concurrent;
-using System.Threading;
 
 namespace Quartz.Spi.MongoJobStore.Util;
 
