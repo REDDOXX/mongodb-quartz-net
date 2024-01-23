@@ -1,3 +1,7 @@
+using JetBrains.Annotations;
+
+using MongoDB.Bson.Serialization.Attributes;
+
 using Quartz.Spi.MongoJobStore.Models.Id;
 
 namespace Quartz.Spi.MongoJobStore.Models;
@@ -8,22 +12,43 @@ namespace Quartz.Spi.MongoJobStore.Models;
     VALUES(@schedulerName, @jobName, @jobGroup, @jobDescription, @jobType, @jobDurable, @jobVolatile, @jobStateful, @jobRequestsRecovery, @jobDataMap)
  */
 
+[UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
 internal class JobDetail
 {
     public JobDetailId Id { get; set; }
 
-    public string Description { get; set; }
+    [BsonIgnoreIfNull]
+    public string? Description { get; set; }
 
-    public Type JobType { get; set; }
+    /// <summary>
+    /// job_class_name
+    /// </summary>
+    public Type JobType { get; set; } // TODO: AssemblyQualifiedNameWithoutVersion
 
-    public JobDataMap JobDataMap { get; set; }
-
+    /// <summary>
+    /// is_durable
+    /// </summary>
     public bool Durable { get; set; }
 
-    public bool PersistJobDataAfterExecution { get; set; }
-
+    /// <summary>
+    /// is_nonconcurrent (legacy: jobVolatile)
+    /// </summary>
     public bool ConcurrentExecutionDisallowed { get; set; }
 
+    /// <summary>
+    /// job_data
+    /// </summary>
+    [BsonIgnoreIfNull] // TODO: Serialize to dictionary? 
+    public JobDataMap? JobDataMap { get; set; }
+
+    /// <summary>
+    /// IS_UPDATE_DATA (legacy: jobStateful)
+    /// </summary>
+    public bool PersistJobDataAfterExecution { get; set; }
+
+    /// <summary>
+    /// requests_recovery
+    /// </summary>
     public bool RequestsRecovery { get; set; }
 
 

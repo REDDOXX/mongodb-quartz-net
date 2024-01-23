@@ -3,32 +3,27 @@ using Microsoft.Extensions.Logging;
 using MongoDB.Driver;
 
 using Quartz.Spi.MongoJobStore.Util;
+using Quartz.Util;
 
 namespace Quartz.Spi.MongoJobStore.Repositories;
 
-internal abstract class BaseRepository<TDocument>
+internal interface IRepository
+{
+    Task EnsureIndex();
+}
+
+internal abstract class BaseRepository<TDocument> : IRepository
 {
     private static readonly ILogger Log = LogProvider.CreateLogger<BaseRepository<TDocument>>();
 
-    private static readonly HashSet<string> InitializedCollections = new();
-
-    protected BaseRepository(IMongoDatabase database, string instanceName, string? collectionPrefix = null)
-    {
-        InstanceName = instanceName;
-        var collectionName = GetCollectionName();
-        if (!string.IsNullOrEmpty(collectionPrefix))
-        {
-            collectionName = $"{collectionPrefix}.{collectionName}";
-        }
-
-        Collection = database.GetCollection<TDocument>(collectionName);
-        EnsureIndexesCreated(collectionName);
-    }
-
-
+    /// <summary>
+    /// Also called schedName
+    /// </summary>
     protected string InstanceName { get; }
 
+
     protected IMongoCollection<TDocument> Collection { get; }
+
 
     protected FilterDefinitionBuilder<TDocument> FilterBuilder => Builders<TDocument>.Filter;
 
@@ -40,10 +35,27 @@ internal abstract class BaseRepository<TDocument>
 
     protected IndexKeysDefinitionBuilder<TDocument> IndexBuilder => Builders<TDocument>.IndexKeys;
 
-    public virtual Task EnsureIndex()
+
+    protected BaseRepository(
+        IMongoDatabase database,
+        string collectionName,
+        string instanceName,
+        string? collectionPrefix = null
+    )
     {
-        return Task.FromResult(0);
+        InstanceName = instanceName;
+
+        if (!string.IsNullOrEmpty(collectionPrefix))
+        {
+            collectionName = $"{collectionPrefix}.{collectionName}";
+        }
+
+        Collection = database.GetCollection<TDocument>(collectionName);
     }
+
+
+    public abstract Task EnsureIndex();
+
 
     public async Task DeleteAll()
     {
@@ -52,36 +64,14 @@ internal abstract class BaseRepository<TDocument>
         await Collection.DeleteManyAsync(filter).ConfigureAwait(false);
     }
 
-    /// <summary>
-    ///     Determines the collectionname
-    /// </summary>
-    /// <returns>Returns the collectionname.</returns>
-    private string GetCollectionName()
-    {
-        // Check to see if the object (inherited from Entity) has a CollectionName attribute
-        var att = Attribute.GetCustomAttribute(GetType(), typeof(CollectionName));
-        var collectionname = att != null ? ((CollectionName)att).Name : typeof(TDocument).Name;
 
-        return collectionname;
-    }
-
-    private void EnsureIndexesCreated(string collectionName)
+    protected string GetStorableJobTypeName(Type jobType)
     {
-        if (InitializedCollections.Contains(collectionName))
+        if (jobType.AssemblyQualifiedName == null)
         {
-            return;
+            throw new ArgumentException("Cannot determine job type name when type's AssemblyQualifiedName is null");
         }
 
-        lock (InitializedCollections)
-        {
-            if (InitializedCollections.Contains(collectionName))
-            {
-                return;
-            }
-
-            Log.LogTrace("Building index for {CollectionName}", collectionName);
-            EnsureIndex();
-            InitializedCollections.Add(collectionName);
-        }
+        return jobType.AssemblyQualifiedNameWithoutVersion();
     }
 }

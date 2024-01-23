@@ -7,11 +7,10 @@ using Quartz.Spi.MongoJobStore.Models.Id;
 
 namespace Quartz.Spi.MongoJobStore.Repositories;
 
-[CollectionName("jobs")]
 internal class JobDetailRepository : BaseRepository<JobDetail>
 {
     public JobDetailRepository(IMongoDatabase database, string instanceName, string? collectionPrefix = null)
-        : base(database, instanceName, collectionPrefix)
+        : base(database, "jobs", instanceName, collectionPrefix)
     {
     }
 
@@ -32,6 +31,17 @@ internal class JobDetailRepository : BaseRepository<JobDetail>
 
     public async Task<JobDetail?> GetJob(JobKey jobKey)
     {
+        /*
+            SELECT
+                JOB_NAME, JOB_GROUP, DESCRIPTION, JOB_CLASS_NAME, IS_DURABLE, REQUESTS_RECOVERY, JOB_DATA, IS_NONCONCURRENT, IS_UPDATE_DATA
+            FROM
+                JOB_DETAILS
+            WHERE
+                SCHED_NAME = @schedulerName AND
+                JOB_NAME = @jobName AND
+                JOB_GROUP = @jobGroup
+        */
+
         return await Collection.Find(detail => detail.Id == new JobDetailId(jobKey, InstanceName))
             .FirstOrDefaultAsync()
             .ConfigureAwait(false);
@@ -96,6 +106,10 @@ internal class JobDetailRepository : BaseRepository<JobDetail>
 
     public async Task<bool> JobExists(JobKey jobKey)
     {
+        //var filter = Builders<JobDetail>.Filter.Eq(x => x.Id.InstanceName, InstanceName) &
+        //             Builders<JobDetail>.Filter.Eq(x => x.Id.Name, jobKey.Name) &
+        //             Builders<JobDetail>.Filter.Eq(x => x.Id.Group, jobKey.Group);
+
         return await Collection.Find(detail => detail.Id == new JobDetailId(jobKey, InstanceName))
             .AnyAsync()
             .ConfigureAwait(false);

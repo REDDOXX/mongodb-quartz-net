@@ -95,7 +95,7 @@ internal class MisfireHandler
         {
             if (_numFails % _jobStore.RetryableActionErrorLogThreshold == 0)
             {
-                Log.LogError(ex, $"Error handling misfires: {ex.Message}", ex);
+                Log.LogError(ex, "Error handling misfires: {Message}", ex.Message);
             }
 
             _numFails++;

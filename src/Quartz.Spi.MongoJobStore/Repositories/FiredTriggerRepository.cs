@@ -5,12 +5,16 @@ using Quartz.Spi.MongoJobStore.Models.Id;
 
 namespace Quartz.Spi.MongoJobStore.Repositories;
 
-[CollectionName("firedTriggers")]
 internal class FiredTriggerRepository : BaseRepository<FiredTrigger>
 {
     public FiredTriggerRepository(IMongoDatabase database, string instanceName, string? collectionPrefix = null)
-        : base(database, instanceName, collectionPrefix)
+        : base(database, "firedTriggers", instanceName, collectionPrefix)
     {
+    }
+
+    public override Task EnsureIndex()
+    {
+        return Task.CompletedTask;
     }
 
     public async Task<List<FiredTrigger>> GetFiredTriggers(JobKey jobKey)

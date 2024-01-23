@@ -1,8 +1,7 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 
 using Microsoft.Extensions.Logging;
-
-using MongoDB.Driver;
 
 using Quartz.Spi.MongoJobStore.Models;
 using Quartz.Spi.MongoJobStore.Repositories;
@@ -16,6 +15,41 @@ namespace Quartz.Spi.MongoJobStore;
 /// </summary>
 internal class LockManager : IDisposable
 {
+    private class LockInstance : IAsyncDisposable
+    {
+        private readonly LockManager _lockManager;
+
+        private bool _disposed;
+
+        public string InstanceId { get; }
+
+        public LockType LockType { get; }
+
+
+        public LockInstance(LockManager lockManager, LockType lockType, string instanceId)
+        {
+            _lockManager = lockManager;
+            LockType = lockType;
+            InstanceId = instanceId;
+        }
+
+
+        public async ValueTask DisposeAsync()
+        {
+            if (_disposed)
+            {
+                throw new ObjectDisposedException(
+                    nameof(LockInstance),
+                    $"This lock {LockType} for {InstanceId} has already been disposed"
+                );
+            }
+
+            await _lockManager.ReleaseLock(this).ConfigureAwait(false);
+
+            _disposed = true;
+        }
+    }
+
     private static readonly TimeSpan SleepThreshold = TimeSpan.FromMilliseconds(1000);
 
     private static readonly ILogger Log = LogProvider.CreateLogger<LockManager>();
@@ -28,28 +62,29 @@ internal class LockManager : IDisposable
 
     private bool _disposed;
 
-    public LockManager(IMongoDatabase database, string instanceName, string collectionPrefix)
+    public LockManager(LockRepository lockRepository)
     {
-        _lockRepository = new LockRepository(database, instanceName, collectionPrefix);
+        _lockRepository = lockRepository;
     }
 
     public void Dispose()
     {
-        EnsureObjectNotDisposed();
+        ThrowIfNotDisposed();
 
         _disposed = true;
+
         var locks = _pendingLocks.ToArray();
         foreach (var keyValuePair in locks)
         {
-            keyValuePair.Value.Dispose();
+            keyValuePair.Value.DisposeAsync().GetAwaiter().GetResult();
         }
     }
 
-    public async Task<IDisposable> AcquireLock(LockType lockType, string instanceId)
+    public async Task<IAsyncDisposable> AcquireLock(LockType lockType, string instanceId)
     {
         while (true)
         {
-            EnsureObjectNotDisposed();
+            ThrowIfNotDisposed();
 
             await _pendingLocksSemaphore.WaitAsync();
             try
@@ -76,10 +111,7 @@ internal class LockManager : IDisposable
         await _pendingLocksSemaphore.WaitAsync();
         try
         {
-            _lockRepository.ReleaseLock(lockInstance.LockType, lockInstance.InstanceId)
-                .ConfigureAwait(false)
-                .GetAwaiter()
-                .GetResult();
+            await _lockRepository.ReleaseLock(lockInstance.LockType, lockInstance.InstanceId).ConfigureAwait(false);
 
             LockReleased(lockInstance);
         }
@@ -89,13 +121,6 @@ internal class LockManager : IDisposable
         }
     }
 
-    private void EnsureObjectNotDisposed()
-    {
-        if (_disposed)
-        {
-            throw new ObjectDisposedException(nameof(LockManager));
-        }
-    }
 
     private void AddLock(LockInstance lockInstance)
     {
@@ -119,37 +144,12 @@ internal class LockManager : IDisposable
         }
     }
 
-    private class LockInstance : IDisposable
+    [DebuggerStepThrough]
+    private void ThrowIfNotDisposed()
     {
-        private readonly LockManager _lockManager;
-
-        private bool _disposed;
-
-        public string InstanceId { get; }
-
-        public LockType LockType { get; }
-
-
-        public LockInstance(LockManager lockManager, LockType lockType, string instanceId)
+        if (_disposed)
         {
-            _lockManager = lockManager;
-            LockType = lockType;
-            InstanceId = instanceId;
-        }
-
-        public void Dispose()
-        {
-            if (_disposed)
-            {
-                throw new ObjectDisposedException(
-                    nameof(LockInstance),
-                    $"This lock {LockType} for {InstanceId} has already been disposed"
-                );
-            }
-
-            _lockManager.ReleaseLock(this).GetAwaiter().GetResult();
-
-            _disposed = true;
+            throw new ObjectDisposedException(nameof(LockManager));
         }
     }
 }

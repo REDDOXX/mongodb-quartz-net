@@ -40,7 +40,7 @@ public class MongoDbJobStore : IJobStore
 
     private ISchedulerSignaler _schedulerSignaler = null!;
 
-
+    private LockRepository _lockRepository = null!;
     private CalendarRepository _calendarRepository = null!;
     private FiredTriggerRepository _firedTriggerRepository = null!;
     private JobDetailRepository _jobDetailRepository = null!;
@@ -142,6 +142,7 @@ public class MongoDbJobStore : IJobStore
     public string InstanceName { get; set; } = null!;
     public int ThreadPoolSize { get; set; }
 
+
     public MongoDbJobStore(ILoggerFactory loggerFactory, IMongoDbJobStoreConnectionFactory connectionFactory)
     {
         JobStoreClassMap.RegisterClassMaps();
@@ -155,7 +156,11 @@ public class MongoDbJobStore : IJobStore
     }
 
 
-    public Task Initialize(ITypeLoadHelper loadHelper, ISchedulerSignaler signaler, CancellationToken token = default)
+    public async Task Initialize(
+        ITypeLoadHelper loadHelper,
+        ISchedulerSignaler signaler,
+        CancellationToken token = default
+    )
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(InstanceId);
         ArgumentException.ThrowIfNullOrWhiteSpace(InstanceName);
@@ -164,15 +169,33 @@ public class MongoDbJobStore : IJobStore
         _schedulerId = new SchedulerId(InstanceId, InstanceName);
         _logger.LogTrace("Scheduler {SchedulerId} initialize", _schedulerId);
 
-        _lockManager = new LockManager(_database, InstanceName, CollectionPrefix);
-        _schedulerRepository = new SchedulerRepository(_database, InstanceName, CollectionPrefix);
-        _jobDetailRepository = new JobDetailRepository(_database, InstanceName, CollectionPrefix);
-        _triggerRepository = new TriggerRepository(_database, InstanceName, CollectionPrefix);
-        _pausedTriggerGroupRepository = new PausedTriggerGroupRepository(_database, InstanceName, CollectionPrefix);
-        _firedTriggerRepository = new FiredTriggerRepository(_database, InstanceName, CollectionPrefix);
         _calendarRepository = new CalendarRepository(_database, InstanceName, CollectionPrefix);
+        _firedTriggerRepository = new FiredTriggerRepository(_database, InstanceName, CollectionPrefix);
+        _jobDetailRepository = new JobDetailRepository(_database, InstanceName, CollectionPrefix);
+        _lockRepository = new LockRepository(_database, InstanceName, CollectionPrefix);
+        _pausedTriggerGroupRepository = new PausedTriggerGroupRepository(_database, InstanceName, CollectionPrefix);
+        _schedulerRepository = new SchedulerRepository(_database, InstanceName, CollectionPrefix);
+        _triggerRepository = new TriggerRepository(_database, InstanceName, CollectionPrefix);
 
-        return Task.FromResult(true);
+        _lockManager = new LockManager(_lockRepository);
+
+
+        _logger.LogTrace("Validating indices...");
+        var repositories = new List<IRepository>
+        {
+            _schedulerRepository,
+            _jobDetailRepository,
+            _triggerRepository,
+            _pausedTriggerGroupRepository,
+            _firedTriggerRepository,
+            _calendarRepository,
+            _lockRepository,
+        };
+
+        foreach (var repository in repositories)
+        {
+            await repository.EnsureIndex();
+        }
     }
 
     public async Task SchedulerStarted(CancellationToken token = default)
@@ -244,7 +267,7 @@ public class MongoDbJobStore : IJobStore
     {
         try
         {
-            using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
+            await using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
             {
                 await StoreJobInternal(newJob, false).ConfigureAwait(false);
                 await StoreTriggerInternal(
@@ -285,7 +308,7 @@ public class MongoDbJobStore : IJobStore
     {
         try
         {
-            using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
+            await using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
             {
                 await StoreJobInternal(newJob, replaceExisting).ConfigureAwait(false);
             }
@@ -304,7 +327,7 @@ public class MongoDbJobStore : IJobStore
     {
         try
         {
-            using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
+            await using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
             {
                 foreach (var job in triggersAndJobs.Keys)
                 {
@@ -339,7 +362,7 @@ public class MongoDbJobStore : IJobStore
     {
         try
         {
-            using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
+            await using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
             {
                 return await RemoveJobInternal(jobKey).ConfigureAwait(false);
             }
@@ -354,7 +377,7 @@ public class MongoDbJobStore : IJobStore
     {
         try
         {
-            using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
+            await using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
             {
                 return jobKeys.Aggregate(true, (current, jobKey) => current && RemoveJobInternal(jobKey).Result);
             }
@@ -377,7 +400,7 @@ public class MongoDbJobStore : IJobStore
         CancellationToken cancellationToken = default
     )
     {
-        using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
+        await using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
         {
             await StoreTriggerInternal(
                 newTrigger,
@@ -395,7 +418,7 @@ public class MongoDbJobStore : IJobStore
     {
         try
         {
-            using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
+            await using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
             {
                 return await RemoveTriggerInternal(triggerKey).ConfigureAwait(false);
             }
@@ -413,9 +436,8 @@ public class MongoDbJobStore : IJobStore
     {
         try
         {
-            using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
+            await using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
             {
-                // TODO: REFAC
                 return triggerKeys.Aggregate(
                     true,
                     (current, triggerKey) => current && RemoveTriggerInternal(triggerKey).Result
@@ -436,7 +458,7 @@ public class MongoDbJobStore : IJobStore
     {
         try
         {
-            using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
+            await using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
             {
                 return await ReplaceTriggerInternal(triggerKey, newTrigger).ConfigureAwait(false);
             }
@@ -472,7 +494,7 @@ public class MongoDbJobStore : IJobStore
     {
         try
         {
-            using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
+            await using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
             {
                 await _calendarRepository.DeleteAll().ConfigureAwait(false);
                 await _firedTriggerRepository.DeleteAll().ConfigureAwait(false);
@@ -493,14 +515,14 @@ public class MongoDbJobStore : IJobStore
         ICalendar calendar,
         bool replaceExisting,
         bool updateTriggers,
-        CancellationToken token = default
+        CancellationToken cancellationToken = default
     )
     {
         try
         {
-            using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
+            await using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
             {
-                await StoreCalendarInternal(name, calendar, replaceExisting, updateTriggers, token)
+                await StoreCalendarInternal(name, calendar, replaceExisting, updateTriggers, cancellationToken)
                     .ConfigureAwait(false);
             }
         }
@@ -514,7 +536,7 @@ public class MongoDbJobStore : IJobStore
     {
         try
         {
-            using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
+            await using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
             {
                 return await RemoveCalendarInternal(calName).ConfigureAwait(false);
             }
@@ -616,7 +638,7 @@ public class MongoDbJobStore : IJobStore
     {
         try
         {
-            using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
+            await using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
             {
                 await PauseTriggerInternal(triggerKey).ConfigureAwait(false);
             }
@@ -634,7 +656,7 @@ public class MongoDbJobStore : IJobStore
     {
         try
         {
-            using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
+            await using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
             {
                 return await PauseTriggerGroupInternal(matcher, token).ConfigureAwait(false);
             }
@@ -649,7 +671,7 @@ public class MongoDbJobStore : IJobStore
     {
         try
         {
-            using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
+            await using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
             {
                 var triggers = await GetTriggersForJob(jobKey, token).ConfigureAwait(false);
                 foreach (var operableTrigger in triggers)
@@ -671,7 +693,7 @@ public class MongoDbJobStore : IJobStore
     {
         try
         {
-            using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
+            await using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
             {
                 var jobKeys = await _jobDetailRepository.GetJobsKeys(matcher).ConfigureAwait(false);
                 foreach (var jobKey in jobKeys)
@@ -696,7 +718,7 @@ public class MongoDbJobStore : IJobStore
     {
         try
         {
-            using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
+            await using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
             {
                 await ResumeTriggerInternal(triggerKey, token).ConfigureAwait(false);
             }
@@ -714,7 +736,7 @@ public class MongoDbJobStore : IJobStore
     {
         try
         {
-            using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
+            await using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
             {
                 return await ResumeTriggersInternal(matcher, token).ConfigureAwait(false);
             }
@@ -734,7 +756,7 @@ public class MongoDbJobStore : IJobStore
     {
         try
         {
-            using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
+            await using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
             {
                 var triggers = await _triggerRepository.GetTriggers(jobKey).ConfigureAwait(false);
                 await Task.WhenAll(
@@ -760,7 +782,7 @@ public class MongoDbJobStore : IJobStore
     {
         try
         {
-            using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
+            await using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
             {
                 var jobKeys = await _jobDetailRepository.GetJobsKeys(matcher).ConfigureAwait(false);
                 foreach (var jobKey in jobKeys)
@@ -791,7 +813,7 @@ public class MongoDbJobStore : IJobStore
     {
         try
         {
-            using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
+            await using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
             {
                 await PauseAllInternal().ConfigureAwait(false);
             }
@@ -806,7 +828,7 @@ public class MongoDbJobStore : IJobStore
     {
         try
         {
-            using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
+            await using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
             {
                 await ResumeAllInternal().ConfigureAwait(false);
             }
@@ -826,7 +848,7 @@ public class MongoDbJobStore : IJobStore
     {
         try
         {
-            using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
+            await using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
             {
                 return await AcquireNextTriggersInternal(noLaterThan, maxCount, timeWindow).ConfigureAwait(false);
             }
@@ -841,7 +863,7 @@ public class MongoDbJobStore : IJobStore
     {
         try
         {
-            using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
+            await using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
             {
                 await _triggerRepository.UpdateTriggerState(
                         trigger.Key,
@@ -865,7 +887,7 @@ public class MongoDbJobStore : IJobStore
     {
         try
         {
-            using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
+            await using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
             {
                 var results = new List<TriggerFiredResult>();
 
@@ -904,7 +926,7 @@ public class MongoDbJobStore : IJobStore
     {
         try
         {
-            using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
+            await using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
             {
                 await TriggeredJobCompleteInternal(trigger, jobDetail, triggerInstCode, token).ConfigureAwait(false);
             }
@@ -925,22 +947,17 @@ public class MongoDbJobStore : IJobStore
     {
         try
         {
-            var result = RecoverMisfiredJobsResult.NoOp;
-
             var misfireCount = await _triggerRepository.GetMisfireCount(MisfireTime.UtcDateTime).ConfigureAwait(false);
             if (misfireCount == 0)
             {
                 _logger.LogDebug("Found 0 triggers that missed their scheduled fire-time.");
-            }
-            else
-            {
-                using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
-                {
-                    result = await RecoverMisfiredJobsInternal(false).ConfigureAwait(false);
-                }
+                return RecoverMisfiredJobsResult.NoOp;
             }
 
-            return result;
+            await using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
+            {
+                return await RecoverMisfiredJobsInternal(false).ConfigureAwait(false);
+            }
         }
         catch (Exception ex)
         {
@@ -950,7 +967,7 @@ public class MongoDbJobStore : IJobStore
 
     private async Task RecoverJobs()
     {
-        using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
+        await using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
         {
             await RecoverJobsInternal().ConfigureAwait(false);
         }

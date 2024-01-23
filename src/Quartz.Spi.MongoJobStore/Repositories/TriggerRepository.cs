@@ -7,12 +7,16 @@ using Quartz.Spi.MongoJobStore.Models.Id;
 
 namespace Quartz.Spi.MongoJobStore.Repositories;
 
-[CollectionName("triggers")]
 internal class TriggerRepository : BaseRepository<Trigger>
 {
     public TriggerRepository(IMongoDatabase database, string instanceName, string? collectionPrefix = null)
-        : base(database, instanceName, collectionPrefix)
+        : base(database, "triggers", instanceName, collectionPrefix)
     {
+    }
+
+    public override Task EnsureIndex()
+    {
+        return Task.CompletedTask;
     }
 
     public async Task<bool> TriggerExists(TriggerKey key)

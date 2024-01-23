@@ -7,12 +7,16 @@ using Quartz.Spi.MongoJobStore.Models.Id;
 
 namespace Quartz.Spi.MongoJobStore.Repositories;
 
-[CollectionName("pausedTriggerGroups")]
 internal class PausedTriggerGroupRepository : BaseRepository<PausedTriggerGroup>
 {
     public PausedTriggerGroupRepository(IMongoDatabase database, string instanceName, string? collectionPrefix = null)
-        : base(database, instanceName, collectionPrefix)
+        : base(database, "pausedTriggerGroups", instanceName, collectionPrefix)
     {
+    }
+
+    public override Task EnsureIndex()
+    {
+        return Task.CompletedTask;
     }
 
     public async Task<List<string>> GetPausedTriggerGroups()

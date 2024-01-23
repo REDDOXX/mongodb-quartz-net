@@ -2,7 +2,7 @@ using MongoDB.Driver;
 
 using Quartz.Spi.MongoJobStore.Database;
 
-namespace Quartz.Spi.MongoJobStore.Tests.DependencyInjection;
+namespace Quartz.Spi.MongoJobStore.Tests.Persistence;
 
 internal class LocalMongoDbJobStoreConnectionFactory : IMongoDbJobStoreConnectionFactory
 {

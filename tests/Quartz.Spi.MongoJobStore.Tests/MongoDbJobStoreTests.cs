@@ -1,3 +1,5 @@
+using System.Diagnostics;
+
 using FluentAssertions;
 
 using Quartz.Impl.Matchers;
@@ -8,6 +10,14 @@ using Xunit;
 [assembly: CollectionBehavior(DisableTestParallelization = true)]
 
 namespace Quartz.Spi.MongoJobStore.Tests;
+
+public class HelloJob : IJob
+{
+    public async Task Execute(IJobExecutionContext context)
+    {
+        await Console.Out.WriteLineAsync("HelloJob is executing.");
+    }
+}
 
 public class MongoDbJobStoreTests : BaseStoreTests, IDisposable
 {
@@ -24,6 +34,14 @@ public class MongoDbJobStoreTests : BaseStoreTests, IDisposable
         _scheduler.Shutdown().Wait();
 
         GC.SuppressFinalize(this);
+    }
+
+    [Fact]
+    public void HelloWorld()
+    {
+        var t = StdAdoConstants.SqlSelectCalendar;
+
+        Debugger.Break();
     }
 
 
@@ -477,5 +495,23 @@ public class MongoDbJobStoreTests : BaseStoreTests, IDisposable
             .Build();
 
         await _scheduler.ScheduleJob(job, trigger);
+    }
+
+    [Fact]
+    public async Task HelloJobTest()
+    {
+        // define the job and tie it to our HelloJob class
+        var job = JobBuilder.Create<HelloJob>().WithIdentity("myJob", "group1").Build();
+
+        // Trigger the job to run now, and then every 40 seconds
+        var trigger = TriggerBuilder.Create()
+            .WithIdentity("myTrigger", "group1")
+            .StartNow()
+            .WithSimpleSchedule(x => x.WithIntervalInSeconds(10).RepeatForever())
+            .Build();
+
+        await _scheduler.ScheduleJob(job, trigger);
+
+        Debugger.Break();
     }
 }

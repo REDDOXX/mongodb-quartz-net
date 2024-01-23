@@ -8,18 +8,33 @@ using Quartz.Spi.MongoJobStore.Util;
 
 namespace Quartz.Spi.MongoJobStore.Repositories;
 
-[CollectionName("locks")]
 internal class LockRepository : BaseRepository<Lock>
 {
     private readonly ILogger<LockRepository> _logger = LogProvider.CreateLogger<LockRepository>();
 
     public LockRepository(IMongoDatabase database, string instanceName, string? collectionPrefix = null)
-        : base(database, instanceName, collectionPrefix)
+        : base(database, "locks", instanceName, collectionPrefix)
     {
     }
 
+
     public override async Task EnsureIndex()
     {
+        // Create: (sched_name,lock_name) uniqueness
+        await Collection.Indexes.CreateOneAsync(
+            new CreateIndexModel<Lock>(
+                Builders<Lock>.IndexKeys.Combine(
+                    Builders<Lock>.IndexKeys.Ascending(x => x.InstanceName),
+                    Builders<Lock>.IndexKeys.Ascending(x => x.LockType)
+                ),
+                new CreateIndexOptions
+                {
+                    Unique = true,
+                }
+            )
+        );
+
+        // Auto-unlock after 30 seconds
         await Collection.Indexes.CreateOneAsync(
                 new CreateIndexModel<Lock>(
                     IndexBuilder.Ascending(@lock => @lock.AcquiredAt),
@@ -42,8 +57,8 @@ internal class LockRepository : BaseRepository<Lock>
         {
             var @lock = new Lock
             {
-                Id = lockId,
-                InstanceId = instanceId,
+                InstanceName = InstanceName,
+                LockType = lockType,
                 AcquiredAt = DateTime.Now,
             };
 
@@ -59,12 +74,13 @@ internal class LockRepository : BaseRepository<Lock>
         }
     }
 
-    public async Task<bool> ReleaseLock(LockType lockType, string instanceId)
+    public async Task ReleaseLock(LockType lockType, string instanceId)
     {
         var lockId = new LockId(lockType, InstanceName);
         _logger.LogTrace("Releasing lock {LockId} on {InstanceId}", lockId, instanceId);
 
-        var filter = FilterBuilder.Where(@lock => @lock.Id == lockId && @lock.InstanceId == instanceId);
+        var filter = Builders<Lock>.Filter.Eq(x => x.InstanceName, InstanceName) &
+                     Builders<Lock>.Filter.Eq(x => x.LockType, lockType);
 
         var result = await Collection.DeleteOneAsync(filter).ConfigureAwait(false);
         if (result.DeletedCount <= 0)
@@ -74,10 +90,9 @@ internal class LockRepository : BaseRepository<Lock>
                 lockId,
                 instanceId
             );
-            return false;
+            return;
         }
 
         _logger.LogTrace("Released lock {LockId} on {InstanceId}", lockId, instanceId);
-        return true;
     }
 }
