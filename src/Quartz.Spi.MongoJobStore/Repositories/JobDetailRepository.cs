@@ -68,13 +68,12 @@ internal class JobDetailRepository : BaseRepository<JobDetail>
 
     public async Task<List<JobKey>> GetJobsKeys(GroupMatcher<JobKey> matcher)
     {
-        var filter2 = FilterBuilder.Eq(x => x.InstanceName, InstanceName) &
-                      FilterBuilder.Regex(x => x.Group, matcher.ToBsonRegularExpression());
-
+        var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) &
+                     FilterBuilder.Regex(x => x.Group, matcher.ToBsonRegularExpression());
 
         return await Collection
             //
-            .Find(filter2)
+            .Find(filter)
             .Project(x => new JobKey(x.Name, x.Group))
             .ToListAsync()
             .ConfigureAwait(false);
@@ -96,21 +95,36 @@ internal class JobDetailRepository : BaseRepository<JobDetail>
         await Collection.InsertOneAsync(jobDetail).ConfigureAwait(false);
     }
 
-    public async Task<long> UpdateJob(JobDetail jobDetail, bool upsert)
+    public async Task<long> UpdateJob(JobDetail jobDetail)
     {
+        // UPDATE JOB_DETAILS SET
+        //  DESCRIPTION = @jobDescription,
+        //  JOB_CLASS_NAME = @jobType,
+        //  IS_DURABLE = @jobDurable,
+        //  IS_NONCONCURRENT = @jobVolatile,
+        //  IS_UPDATE_DATA = @jobStateful,
+        //  REQUESTS_RECOVERY = @jobRequestsRecovery,
+        //  JOB_DATA = @jobDataMap
+        // WHERE
+        //  SCHED_NAME = @schedulerName AND
+        //  JOB_NAME = @jobName AND
+        //  JOB_GROUP = @jobGroup";
+
         var filter = FilterBuilder.Eq(x => x.InstanceName, jobDetail.InstanceName) &
                      FilterBuilder.Eq(x => x.Name, jobDetail.Name) &
                      FilterBuilder.Eq(x => x.Group, jobDetail.Group);
 
-        var result = await Collection.ReplaceOneAsync(
-                filter,
-                jobDetail,
-                new ReplaceOptions
-                {
-                    IsUpsert = upsert,
-                }
-            )
-            .ConfigureAwait(false);
+        var update = UpdateBuilder
+            //
+            .Set(x => x.Description, jobDetail.Description)
+            .Set(x => x.JobType, jobDetail.JobType)
+            .Set(x => x.Durable, jobDetail.Durable)
+            .Set(x => x.ConcurrentExecutionDisallowed, jobDetail.ConcurrentExecutionDisallowed)
+            .Set(x => x.PersistJobDataAfterExecution, jobDetail.PersistJobDataAfterExecution)
+            .Set(x => x.RequestsRecovery, jobDetail.RequestsRecovery)
+            .Set(x => x.JobDataMap, jobDetail.JobDataMap);
+
+        var result = await Collection.UpdateOneAsync(filter, update).ConfigureAwait(false);
         return result.ModifiedCount;
     }
 

@@ -14,7 +14,7 @@ internal interface IRepository
 
 internal abstract class BaseRepository<TDocument> : IRepository
 {
-    private static readonly ILogger Log = LogProvider.CreateLogger<BaseRepository<TDocument>>();
+    private readonly ILogger _logger = LogProvider.CreateLogger<BaseRepository<TDocument>>();
 
     /// <summary>
     /// Also called schedName

@@ -41,7 +41,8 @@ internal abstract class Trigger
 
     public JobKey JobKey { get; set; }
 
-    public string Description { get; set; }
+    [BsonIgnoreIfNull]
+    public string? Description { get; set; }
 
     [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
     public DateTime? NextFireTime { get; set; }

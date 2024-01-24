@@ -9,7 +9,7 @@ namespace Quartz.Spi.MongoJobStore.Cluster;
 /// </summary>
 internal class ClusterManager
 {
-    private readonly ILogger<ClusterManager> _logger;
+    private readonly ILogger<ClusterManager> _logger = LogProvider.CreateLogger<ClusterManager>();
 
     // keep constant lock requestor id for manager's lifetime
     private readonly Guid _requestorId = Guid.NewGuid();
@@ -17,7 +17,7 @@ internal class ClusterManager
     private readonly MongoDbJobStore _jobStoreSupport;
 
 
-    private readonly CancellationTokenSource _cancellationTokenSource;
+    private readonly CancellationTokenSource _cancellationTokenSource = new();
     private Task _task = null!;
 
     private int _numFails;
@@ -25,8 +25,6 @@ internal class ClusterManager
     internal ClusterManager(MongoDbJobStore jobStoreSupport)
     {
         _jobStoreSupport = jobStoreSupport;
-        _cancellationTokenSource = new CancellationTokenSource();
-        _logger = LogProvider.CreateLogger<ClusterManager>();
     }
 
     public async Task Initialize()
@@ -43,7 +41,7 @@ internal class ClusterManager
 
     public async Task Shutdown()
     {
-        _cancellationTokenSource.Cancel();
+        await _cancellationTokenSource.CancelAsync();
         try
         {
             await _task.ConfigureAwait(false);

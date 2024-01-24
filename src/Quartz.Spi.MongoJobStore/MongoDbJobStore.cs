@@ -178,7 +178,11 @@ public class MongoDbJobStore : IJobStore
         ArgumentException.ThrowIfNullOrWhiteSpace(InstanceName);
 
         _schedulerSignaler = signaler;
-        _schedulerId = new SchedulerId(InstanceId, InstanceName);
+        _schedulerId = new SchedulerId
+        {
+            InstanceName = InstanceName,
+            Id = InstanceId,
+        };
         _logger.LogTrace("Scheduler {SchedulerId} initialize", _schedulerId);
 
         _calendarRepository = new CalendarRepository(_database, InstanceName, CollectionPrefix);
@@ -210,10 +214,25 @@ public class MongoDbJobStore : IJobStore
         }
     }
 
+    public async Task Shutdown(CancellationToken token = default)
+    {
+        _logger.LogTrace("Scheduler {SchedulerId} shutdown", _schedulerId);
+
+        if (_misfireHandler != null)
+        {
+            await _misfireHandler.Shutdown().ConfigureAwait(false);
+        }
+
+        if (clusterManager != null)
+        {
+            await clusterManager.Shutdown().ConfigureAwait(false);
+        }
+    }
+
 
     #region Scheduler
 
-    public async Task SchedulerStarted(CancellationToken token = default)
+    public async Task SchedulerStarted(CancellationToken cancellationToken = default)
     {
         _logger.LogTrace("Scheduler {SchedulerId} started", _schedulerId);
 
@@ -237,7 +256,7 @@ public class MongoDbJobStore : IJobStore
         }
 
         _misfireHandler = new MisfireHandler(this);
-        _misfireHandler.Start();
+        await _misfireHandler.Initialize(cancellationToken);
         _schedulerRunning = true;
     }
 
@@ -260,28 +279,6 @@ public class MongoDbJobStore : IJobStore
     #endregion
 
 
-    public async Task Shutdown(CancellationToken token = default)
-    {
-        _logger.LogTrace("Scheduler {SchedulerId} shutdown", _schedulerId);
-
-        if (_misfireHandler != null)
-        {
-            _misfireHandler.Shutdown();
-            try
-            {
-                _misfireHandler.Join();
-            }
-            catch (ThreadInterruptedException)
-            {
-            }
-        }
-
-        if (clusterManager != null)
-        {
-            await clusterManager.Shutdown().ConfigureAwait(false);
-        }
-    }
-
     public async Task StoreJobAndTrigger(
         IJobDetail newJob,
         IOperableTrigger newTrigger,
@@ -293,6 +290,7 @@ public class MongoDbJobStore : IJobStore
             await using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
             {
                 await StoreJobInternal(newJob, false).ConfigureAwait(false);
+
                 await StoreTriggerInternal(
                         newTrigger,
                         newJob,
@@ -315,18 +313,21 @@ public class MongoDbJobStore : IJobStore
         }
     }
 
+    // Checked
     public Task<bool> IsJobGroupPaused(string groupName, CancellationToken token = default)
     {
         // This is not implemented in the core ADO stuff, so we won't implement it here either
         throw new NotImplementedException();
     }
 
+    // Checked
     public Task<bool> IsTriggerGroupPaused(string groupName, CancellationToken token = default)
     {
         // This is not implemented in the core ADO stuff, so we won't implement it here either
         throw new NotImplementedException();
     }
 
+    // Checked
     public async Task StoreJob(IJobDetail newJob, bool replaceExisting, CancellationToken token = default)
     {
         try
@@ -342,6 +343,7 @@ public class MongoDbJobStore : IJobStore
         }
     }
 
+    // Checked
     public async Task StoreJobsAndTriggers(
         IReadOnlyDictionary<IJobDetail, IReadOnlyCollection<ITrigger>> triggersAndJobs,
         bool replace,
@@ -352,10 +354,11 @@ public class MongoDbJobStore : IJobStore
         {
             await using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
             {
-                foreach (var job in triggersAndJobs.Keys)
+                foreach (var (job, triggers) in triggersAndJobs)
                 {
                     await StoreJobInternal(job, replace).ConfigureAwait(false);
-                    foreach (var trigger in triggersAndJobs[job])
+
+                    foreach (var trigger in triggers)
                     {
                         await StoreTriggerInternal(
                                 (IOperableTrigger)trigger,
@@ -396,13 +399,21 @@ public class MongoDbJobStore : IJobStore
         }
     }
 
+    // Checked
     public async Task<bool> RemoveJobs(IReadOnlyCollection<JobKey> jobKeys, CancellationToken token = default)
     {
         try
         {
             await using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
             {
-                return jobKeys.Aggregate(true, (current, jobKey) => current && RemoveJobInternal(jobKey).Result);
+                var result = true;
+
+                foreach (var jobKey in jobKeys)
+                {
+                    result = result && await RemoveJobInternal(jobKey).ConfigureAwait(false);
+                }
+
+                return result;
             }
         }
         catch (Exception ex)
@@ -411,12 +422,15 @@ public class MongoDbJobStore : IJobStore
         }
     }
 
+    // Checked
     public async Task<IJobDetail?> RetrieveJob(JobKey jobKey, CancellationToken token = default)
     {
         var result = await _jobDetailRepository.GetJob(jobKey).ConfigureAwait(false);
+
         return result?.GetJobDetail();
     }
 
+    // Checked
     public async Task StoreTrigger(
         IOperableTrigger newTrigger,
         bool replaceExisting,
@@ -473,6 +487,7 @@ public class MongoDbJobStore : IJobStore
         }
     }
 
+    // Checked
     public async Task<bool> ReplaceTrigger(
         TriggerKey triggerKey,
         IOperableTrigger newTrigger,
@@ -1083,7 +1098,26 @@ public class MongoDbJobStore : IJobStore
 
     private async Task<bool> ReplaceTriggerInternal(TriggerKey triggerKey, IOperableTrigger newTrigger)
     {
+        // SELECT
+        //  J.JOB_NAME,
+        //  J.JOB_GROUP,
+        //  J.IS_DURABLE,
+        //  J.JOB_CLASS_NAME,
+        //  J.REQUESTS_RECOVERY
+        // FROM
+        //  TRIGGERS T,
+        //  JOB_DETAILS J
+        // WHERE
+        //  T.SCHED_NAME = @schedulerName AND
+        //  T.SCHED_NAME = J.SCHED_NAME AND
+        //  T.TRIGGER_NAME = @triggerName AND
+        //  T.TRIGGER_GROUP = @triggerGroup AND
+        //  T.JOB_NAME = J.JOB_NAME AND
+        //  T.JOB_GROUP = J.JOB_GROUP";
+
+
         var trigger = await _triggerRepository.GetTrigger(triggerKey).ConfigureAwait(false);
+
 
         var result = await _jobDetailRepository.GetJob(trigger.JobKey).ConfigureAwait(false);
         var job = result?.GetJobDetail();
@@ -1104,9 +1138,11 @@ public class MongoDbJobStore : IJobStore
         return removedTrigger > 0;
     }
 
+
     private async Task<bool> RemoveJobInternal(JobKey jobKey)
     {
         await _triggerRepository.DeleteTriggers(jobKey).ConfigureAwait(false);
+
         var result = await _jobDetailRepository.DeleteJob(jobKey).ConfigureAwait(false);
         return result > 0;
     }
@@ -1256,9 +1292,12 @@ public class MongoDbJobStore : IJobStore
         }
     }
 
+    // Checked
     private async Task StoreJobInternal(IJobDetail newJob, bool replaceExisting)
     {
         var existingJob = await _jobDetailRepository.JobExists(newJob.Key).ConfigureAwait(false);
+
+        var jobDetail = new JobDetail(newJob, InstanceName);
 
         if (existingJob)
         {
@@ -1267,14 +1306,15 @@ public class MongoDbJobStore : IJobStore
                 throw new ObjectAlreadyExistsException(newJob);
             }
 
-            await _jobDetailRepository.UpdateJob(new JobDetail(newJob, InstanceName), true).ConfigureAwait(false);
+            await _jobDetailRepository.UpdateJob(jobDetail).ConfigureAwait(false);
         }
         else
         {
-            await _jobDetailRepository.AddJob(new JobDetail(newJob, InstanceName)).ConfigureAwait(false);
+            await _jobDetailRepository.AddJob(jobDetail).ConfigureAwait(false);
         }
     }
 
+    // Checked
     private async Task StoreTriggerInternal(
         IOperableTrigger newTrigger,
         IJobDetail? job,
@@ -1308,7 +1348,7 @@ public class MongoDbJobStore : IJobStore
                 }
             }
 
-            if (shouldBePaused && state == Models.TriggerState.Waiting || state == Models.TriggerState.Acquired)
+            if (shouldBePaused && (state == Models.TriggerState.Waiting || state == Models.TriggerState.Acquired))
             {
                 state = Models.TriggerState.Paused;
             }
@@ -1316,7 +1356,8 @@ public class MongoDbJobStore : IJobStore
 
         if (job == null)
         {
-            job = (await _jobDetailRepository.GetJob(newTrigger.JobKey).ConfigureAwait(false))?.GetJobDetail();
+            var jobDetail = await _jobDetailRepository.GetJob(newTrigger.JobKey).ConfigureAwait(false);
+            job = jobDetail?.GetJobDetail();
         }
 
         if (job == null)
@@ -1331,30 +1372,34 @@ public class MongoDbJobStore : IJobStore
             state = await CheckBlockedState(job.Key, state).ConfigureAwait(false);
         }
 
+
+        var trigger = TriggerFactory.CreateTrigger(newTrigger, state, InstanceName);
+
         if (existingTrigger)
         {
-            await _triggerRepository.UpdateTrigger(TriggerFactory.CreateTrigger(newTrigger, state, InstanceName))
-                .ConfigureAwait(false);
+            await _triggerRepository.UpdateTrigger(trigger).ConfigureAwait(false);
         }
         else
         {
-            await _triggerRepository.AddTrigger(TriggerFactory.CreateTrigger(newTrigger, state, InstanceName))
-                .ConfigureAwait(false);
+            await _triggerRepository.AddTrigger(trigger).ConfigureAwait(false);
         }
     }
 
+    // Checked
     private async Task<Models.TriggerState> CheckBlockedState(JobKey jobKey, Models.TriggerState currentState)
     {
+        // State can only transition to BLOCKED from PAUSED or WAITING.
         if (currentState != Models.TriggerState.Waiting && currentState != Models.TriggerState.Paused)
         {
             return currentState;
         }
 
-        var firedTrigger =
-            (await _firedTriggerRepository.GetFiredTriggers(jobKey).ConfigureAwait(false)).FirstOrDefault();
+        var firedTriggers = await _firedTriggerRepository.GetFiredTriggers(jobKey).ConfigureAwait(false);
+        
+        var firedTrigger = firedTriggers.FirstOrDefault();
         if (firedTrigger != null)
         {
-            if (firedTrigger.ConcurrentExecutionDisallowed)
+            if (firedTrigger.ConcurrentExecutionDisallowed) // TODO: worry about failed/recovering/volatile job  states?
             {
                 return currentState == Models.TriggerState.Paused ? Models.TriggerState.PausedBlocked
                     : Models.TriggerState.Blocked;

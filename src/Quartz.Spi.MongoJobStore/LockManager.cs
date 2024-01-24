@@ -52,7 +52,7 @@ internal class LockManager : IDisposable
 
     private static readonly TimeSpan SleepThreshold = TimeSpan.FromMilliseconds(1000);
 
-    private static readonly ILogger Log = LogProvider.CreateLogger<LockManager>();
+    private readonly ILogger _logger = LogProvider.CreateLogger<LockManager>();
 
     private readonly LockRepository _lockRepository;
 
@@ -136,7 +136,7 @@ internal class LockManager : IDisposable
     {
         if (!_pendingLocks.TryRemove(lockInstance.LockType, out _))
         {
-            Log.LogWarning(
+            _logger.LogWarning(
                 "Unable to remove pending lock {LockType} on {InstanceId}",
                 lockInstance.LockType,
                 lockInstance.InstanceId
