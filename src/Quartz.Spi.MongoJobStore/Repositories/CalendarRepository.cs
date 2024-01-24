@@ -42,18 +42,20 @@ internal class CalendarRepository : BaseRepository<Calendar>
             .ConfigureAwait(false);
     }
 
-    public async Task<Calendar?> GetCalendar(string calendarName)
+    public async Task<ICalendar?> GetCalendar(string calendarName)
     {
         // SELECT CALENDAR FROM CALENDARS WHERE SCHED_NAME = @schedulerName AND CALENDAR_NAME = @calendarName
 
         var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) &
                      FilterBuilder.Eq(x => x.CalendarName, calendarName);
 
-        return await Collection
+        var result = await Collection
             // 
             .Find(filter)
             .FirstOrDefaultAsync()
             .ConfigureAwait(false);
+
+        return result?.GetCalendar();
     }
 
     public async Task<List<string>> GetCalendarNames()

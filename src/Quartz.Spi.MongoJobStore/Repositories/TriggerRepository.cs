@@ -248,11 +248,11 @@ internal class TriggerRepository : BaseRepository<Trigger>
         await Collection.ReplaceOneAsync(filter, trigger).ConfigureAwait(false);
     }
 
-    public async Task<long> UpdateTriggerState(TriggerKey key, Models.TriggerState state)
+    public async Task<long> UpdateTriggerState(TriggerKey triggerKey, Models.TriggerState state)
     {
         var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) &
-                     FilterBuilder.Eq(x => x.Name, key.Name) &
-                     FilterBuilder.Eq(x => x.Group, key.Group);
+                     FilterBuilder.Eq(x => x.Name, triggerKey.Name) &
+                     FilterBuilder.Eq(x => x.Group, triggerKey.Group);
 
         var update = UpdateBuilder.Set(trigger => trigger.State, state);
 
@@ -261,14 +261,14 @@ internal class TriggerRepository : BaseRepository<Trigger>
     }
 
     public async Task<long> UpdateTriggerState(
-        TriggerKey key,
+        TriggerKey triggerKey,
         Models.TriggerState newState,
         Models.TriggerState oldState
     )
     {
         var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) &
-                     FilterBuilder.Eq(x => x.Name, key.Name) &
-                     FilterBuilder.Eq(x => x.Group, key.Group) &
+                     FilterBuilder.Eq(x => x.Name, triggerKey.Name) &
+                     FilterBuilder.Eq(x => x.Group, triggerKey.Group) &
                      FilterBuilder.Eq(x => x.State, oldState);
 
         var update = UpdateBuilder.Set(trigger => trigger.State, newState);

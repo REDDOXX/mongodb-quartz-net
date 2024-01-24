@@ -210,20 +210,12 @@ public class MongoDbJobStore : IJobStore
         }
     }
 
+
+    #region Scheduler
+
     public async Task SchedulerStarted(CancellationToken token = default)
     {
         _logger.LogTrace("Scheduler {SchedulerId} started", _schedulerId);
-
-        // TODO: Move to check in
-        //await _schedulerRepository.AddScheduler(
-        //        new Scheduler
-        //        {
-        //            Id = _schedulerId,
-        //            State = SchedulerState.Started,
-        //            LastCheckIn = DateTime.Now,
-        //        }
-        //    )
-        //    .ConfigureAwait(false);
 
         if (Clustered)
         {
@@ -238,6 +230,8 @@ public class MongoDbJobStore : IJobStore
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Failure occurred during job recovery: {Message}", ex.Message);
+
                 throw new SchedulerConfigException("Failure occurred during job recovery", ex);
             }
         }
@@ -262,6 +256,9 @@ public class MongoDbJobStore : IJobStore
 
         return Task.CompletedTask;
     }
+
+    #endregion
+
 
     public async Task Shutdown(CancellationToken token = default)
     {
@@ -575,8 +572,7 @@ public class MongoDbJobStore : IJobStore
 
     public async Task<ICalendar?> RetrieveCalendar(string calName, CancellationToken token = default)
     {
-        var result = await _calendarRepository.GetCalendar(calName).ConfigureAwait(false);
-        return result?.GetCalendar();
+        return await _calendarRepository.GetCalendar(calName).ConfigureAwait(false);
     }
 
     public async Task<int> GetNumberOfJobs(CancellationToken token = default)
@@ -899,12 +895,19 @@ public class MongoDbJobStore : IJobStore
                         Models.TriggerState.Acquired
                     )
                     .ConfigureAwait(false);
+                await _triggerRepository.UpdateTriggerState(
+                        trigger.Key,
+                        Models.TriggerState.Waiting,
+                        Models.TriggerState.Blocked
+                    )
+                    .ConfigureAwait(false);
+
                 await _firedTriggerRepository.DeleteFiredTrigger(trigger.FireInstanceId).ConfigureAwait(false);
             }
         }
         catch (Exception ex)
         {
-            throw new JobPersistenceException(ex.Message, ex);
+            throw new JobPersistenceException($"Couldn't release acquired trigger: {ex.Message}", ex);
         }
     }
 
@@ -1382,17 +1385,15 @@ public class MongoDbJobStore : IJobStore
         catch (JobPersistenceException ex)
         {
             _logger.LogError(ex, "Error retrieving job, setting trigger state to ERROR.");
-            //await Delegate.UpdateTriggerState(conn, trigger.Key, StateError, cancellationToken).ConfigureAwait(false);
-            await _triggerRepository.UpdateTriggerState(trigger.Key, Models.TriggerState.Error);
 
+            await _triggerRepository.UpdateTriggerState(trigger.Key, Models.TriggerState.Error);
             throw;
         }
 
         ICalendar? calendar = null;
         if (trigger.CalendarName != null)
         {
-            calendar = (await _calendarRepository.GetCalendar(trigger.CalendarName).ConfigureAwait(false))
-                ?.GetCalendar();
+            calendar = await _calendarRepository.GetCalendar(trigger.CalendarName).ConfigureAwait(false);
             if (calendar == null)
             {
                 return null;
@@ -1500,7 +1501,7 @@ public class MongoDbJobStore : IJobStore
         ICalendar? cal = null;
         if (trigger.CalendarName != null)
         {
-            cal = (await _calendarRepository.GetCalendar(trigger.CalendarName).ConfigureAwait(false)).GetCalendar();
+            cal = await _calendarRepository.GetCalendar(trigger.CalendarName).ConfigureAwait(false);
         }
 
         await _schedulerSignaler.NotifyTriggerListenersMisfired(operableTrigger).ConfigureAwait(false);
@@ -1556,10 +1557,11 @@ public class MongoDbJobStore : IJobStore
 
             foreach (var triggerKey in keys)
             {
+                // If our trigger is no longer available, try a new one.
                 var nextTrigger = await _triggerRepository.GetTrigger(triggerKey).ConfigureAwait(false);
                 if (nextTrigger == null)
                 {
-                    continue;
+                    continue; // next trigger
                 }
 
                 var jobKey = nextTrigger.JobKey;

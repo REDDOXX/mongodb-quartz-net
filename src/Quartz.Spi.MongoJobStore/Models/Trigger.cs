@@ -58,7 +58,7 @@ internal abstract class Trigger
     [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
     public DateTime? EndTime { get; set; }
 
-    public string CalendarName { get; set; }
+    public string? CalendarName { get; set; }
 
     public int MisfireInstruction { get; set; }
 

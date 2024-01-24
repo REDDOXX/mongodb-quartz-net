@@ -52,8 +52,10 @@ internal class FiredTrigger
 
     public FiredTrigger(string firedInstanceId, Trigger trigger, JobDetail? jobDetail)
     {
-        Id = new FiredTriggerId(firedInstanceId, trigger.Id.InstanceName);
-        TriggerKey = trigger.Id.GetTriggerKey();
+        InstanceName = trigger.InstanceName;
+        FiredInstanceId = firedInstanceId;
+
+        TriggerKey = trigger.GetTriggerKey();
         Fired = DateTime.UtcNow;
         Scheduled = trigger.NextFireTime;
         Priority = trigger.Priority;
@@ -61,7 +63,7 @@ internal class FiredTrigger
 
         if (jobDetail != null)
         {
-            JobKey = jobDetail.Id.GetJobKey();
+            JobKey = jobDetail.GetJobKey();
             ConcurrentExecutionDisallowed = jobDetail.ConcurrentExecutionDisallowed;
             RequestsRecovery = jobDetail.RequestsRecovery;
         }

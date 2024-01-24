@@ -2,7 +2,6 @@ using JetBrains.Annotations;
 
 namespace Quartz.Spi.MongoJobStore.Models.Id;
 
-[UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
 internal class PausedTriggerGroupId
 {
     public required string InstanceName { get; set; }

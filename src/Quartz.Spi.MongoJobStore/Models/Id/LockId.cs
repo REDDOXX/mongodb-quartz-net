@@ -5,7 +5,6 @@ using MongoDB.Bson.Serialization.Attributes;
 
 namespace Quartz.Spi.MongoJobStore.Models.Id;
 
-[UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
 internal class LockId
 {
     public required string InstanceName { get; set; }

@@ -3,7 +3,6 @@ using MongoDB.Driver;
 using Quartz.Impl.Matchers;
 using Quartz.Spi.MongoJobStore.Extensions;
 using Quartz.Spi.MongoJobStore.Models;
-using Quartz.Spi.MongoJobStore.Models.Id;
 
 namespace Quartz.Spi.MongoJobStore.Repositories;
 
@@ -117,16 +116,21 @@ internal class JobDetailRepository : BaseRepository<JobDetail>
 
     public async Task UpdateJobData(JobKey jobKey, JobDataMap jobDataMap)
     {
+        var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) &
+                     FilterBuilder.Eq(x => x.Name, jobKey.Name) &
+                     FilterBuilder.Eq(x => x.Group, jobKey.Group);
+
         var update = UpdateBuilder.Set(detail => detail.JobDataMap, jobDataMap);
 
-        await Collection.UpdateOneAsync(detail => detail.Id == new JobDetailId(jobKey, InstanceName), update)
-            .ConfigureAwait(false);
+        await Collection.UpdateOneAsync(filter, update).ConfigureAwait(false);
     }
 
 
     public async Task<long> DeleteJob(JobKey key)
     {
-        var filter = FilterBuilder.Where(job => job.Id == new JobDetailId(key, InstanceName));
+        var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) &
+                     FilterBuilder.Eq(x => x.Name, key.Name) &
+                     FilterBuilder.Eq(x => x.Group, key.Group);
 
         var result = await Collection.DeleteOneAsync(filter).ConfigureAwait(false);
         return result.DeletedCount;
@@ -134,18 +138,20 @@ internal class JobDetailRepository : BaseRepository<JobDetail>
 
     public async Task<bool> JobExists(JobKey jobKey)
     {
-        //var filter = Builders<JobDetail>.Filter.Eq(x => x.Id.InstanceName, InstanceName) &
-        //             Builders<JobDetail>.Filter.Eq(x => x.Id.Name, jobKey.Name) &
-        //             Builders<JobDetail>.Filter.Eq(x => x.Id.Group, jobKey.Group);
+        var filter = Builders<JobDetail>.Filter.Eq(x => x.InstanceName, InstanceName) &
+                     Builders<JobDetail>.Filter.Eq(x => x.Name, jobKey.Name) &
+                     Builders<JobDetail>.Filter.Eq(x => x.Group, jobKey.Group);
 
-        return await Collection.Find(detail => detail.Id == new JobDetailId(jobKey, InstanceName))
-            .AnyAsync()
-            .ConfigureAwait(false);
+        return await Collection.Find(filter).AnyAsync().ConfigureAwait(false);
     }
 
     public async Task<long> GetCount()
     {
-        return await Collection.Find(detail => detail.Id.InstanceName == InstanceName)
+        var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName);
+
+        return await Collection
+            //
+            .Find(filter)
             .CountDocumentsAsync()
             .ConfigureAwait(false);
     }
