@@ -1,7 +1,6 @@
 using MongoDB.Driver;
 
 using Quartz.Spi.MongoJobStore.Models;
-using Quartz.Spi.MongoJobStore.Models.Id;
 
 namespace Quartz.Spi.MongoJobStore.Repositories;
 
@@ -12,15 +11,30 @@ internal class SchedulerRepository : BaseRepository<Scheduler>
     {
     }
 
-    public override Task EnsureIndex()
+    public override async Task EnsureIndex()
     {
-        return Task.CompletedTask;
+        await Collection.Indexes.CreateOneAsync(
+            new CreateIndexModel<Scheduler>(
+                IndexBuilder.Combine(
+                    //
+                    IndexBuilder.Ascending(x => x.InstanceName),
+                    IndexBuilder.Ascending(x => x.Name)
+                ),
+                new CreateIndexOptions
+                {
+                    Unique = true,
+                }
+            )
+        );
     }
 
     public async Task AddScheduler(Scheduler scheduler)
     {
+        var filter = FilterBuilder.Eq(x => x.InstanceName, scheduler.InstanceName) &
+                     FilterBuilder.Eq(x => x.Name, scheduler.Name);
+
         await Collection.ReplaceOneAsync(
-                sch => sch.Id == scheduler.Id,
+                filter,
                 scheduler,
                 new ReplaceOptions
                 {
@@ -32,14 +46,19 @@ internal class SchedulerRepository : BaseRepository<Scheduler>
 
     public async Task DeleteScheduler(string id)
     {
-        await Collection.DeleteOneAsync(sch => sch.Id == new SchedulerId(id, InstanceName)).ConfigureAwait(false);
+        var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) & //
+                     FilterBuilder.Eq(x => x.Name, id);
+
+        await Collection.DeleteOneAsync(filter).ConfigureAwait(false);
     }
 
-    public async Task UpdateState(string id, SchedulerState state)
+    public async Task UpdateState(string id, DateTime lastCheckIn)
     {
-        var update = UpdateBuilder.Set(sch => sch.State, state);
+        var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) & //
+                     FilterBuilder.Eq(x => x.Name, id);
 
-        await Collection.UpdateOneAsync(sch => sch.Id == new SchedulerId(id, InstanceName), update)
-            .ConfigureAwait(false);
+        var update = UpdateBuilder.Set(sch => sch.LastCheckIn, lastCheckIn);
+
+        await Collection.UpdateOneAsync(filter, update).ConfigureAwait(false);
     }
 }

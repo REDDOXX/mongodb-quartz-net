@@ -1,7 +1,10 @@
+using JetBrains.Annotations;
+
 using Quartz.Impl.Triggers;
 
 namespace Quartz.Spi.MongoJobStore.Models;
 
+[UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
 internal class SimpleTrigger : Trigger
 {
     public int RepeatCount { get; set; }

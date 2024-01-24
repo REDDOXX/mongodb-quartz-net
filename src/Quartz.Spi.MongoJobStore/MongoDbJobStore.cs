@@ -10,6 +10,7 @@ using MongoDB.Driver;
 using Quartz.Impl.AdoJobStore;
 using Quartz.Impl.Matchers;
 using Quartz.Simpl;
+using Quartz.Spi.MongoJobStore.Cluster;
 using Quartz.Spi.MongoJobStore.Database;
 using Quartz.Spi.MongoJobStore.Models;
 using Quartz.Spi.MongoJobStore.Models.Id;
@@ -50,8 +51,10 @@ public class MongoDbJobStore : IJobStore
 
     private LockManager _lockManager = null!;
 
-    private MisfireHandler? _misfireHandler = null!;
+    private MisfireHandler? _misfireHandler;
     private TimeSpan _misfireThreshold = TimeSpan.FromMinutes(1);
+    private ClusterManager? clusterManager;
+
 
     private SchedulerId _schedulerId;
     private bool _schedulerRunning;
@@ -102,7 +105,7 @@ public class MongoDbJobStore : IJobStore
     /// <summary>
     /// Get whether the threads spawned by this JobStore should be
     /// marked as daemon.  Possible threads include the <see cref="MisfireHandler" />
-    /// and the <see cref="ClusterManager"/>.
+    /// and the <see cref="Impl.AdoJobStore.ClusterManager"/>.
     /// </summary>
     /// <returns></returns>
     public bool MakeThreadsDaemons { get; set; }
@@ -114,6 +117,15 @@ public class MongoDbJobStore : IJobStore
     /// </summary>
     [TimeSpanParseRule(TimeSpanParseRule.Milliseconds)]
     public TimeSpan ClusterCheckinInterval { get; set; }
+
+    /// <summary>
+    /// The time span by which a check-in must have missed its
+    /// next-fire-time, in order for it to be considered "misfired" and thus
+    /// other scheduler instances in a cluster can consider a "misfired" scheduler
+    /// instance as failed or dead.
+    /// </summary>
+    [TimeSpanParseRule(TimeSpanParseRule.Milliseconds)]
+    public TimeSpan ClusterCheckinMisfireThreshold { get; set; }
 
 
     protected internal DateTimeOffset LastCheckin { get; set; } = SystemTime.UtcNow();
@@ -202,23 +214,32 @@ public class MongoDbJobStore : IJobStore
     {
         _logger.LogTrace("Scheduler {SchedulerId} started", _schedulerId);
 
-        await _schedulerRepository.AddScheduler(
-                new Scheduler
-                {
-                    Id = _schedulerId,
-                    State = SchedulerState.Started,
-                    LastCheckIn = DateTime.Now,
-                }
-            )
-            .ConfigureAwait(false);
+        // TODO: Move to check in
+        //await _schedulerRepository.AddScheduler(
+        //        new Scheduler
+        //        {
+        //            Id = _schedulerId,
+        //            State = SchedulerState.Started,
+        //            LastCheckIn = DateTime.Now,
+        //        }
+        //    )
+        //    .ConfigureAwait(false);
 
-        try
+        if (Clustered)
         {
-            await RecoverJobs().ConfigureAwait(false);
+            clusterManager = new ClusterManager(this);
+            await clusterManager.Initialize();
         }
-        catch (Exception ex)
+        else
         {
-            throw new SchedulerConfigException("Failure occurred during job recovery", ex);
+            try
+            {
+                await RecoverJobs().ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                throw new SchedulerConfigException("Failure occurred during job recovery", ex);
+            }
         }
 
         _misfireHandler = new MisfireHandler(this);
@@ -226,18 +247,20 @@ public class MongoDbJobStore : IJobStore
         _schedulerRunning = true;
     }
 
-    public async Task SchedulerPaused(CancellationToken token = default)
+    public Task SchedulerPaused(CancellationToken token = default)
     {
         _logger.LogTrace("Scheduler {SchedulerId} paused", _schedulerId);
-        await _schedulerRepository.UpdateState(_schedulerId.Id, SchedulerState.Paused).ConfigureAwait(false);
         _schedulerRunning = false;
+
+        return Task.CompletedTask;
     }
 
-    public async Task SchedulerResumed(CancellationToken token = default)
+    public Task SchedulerResumed(CancellationToken token = default)
     {
         _logger.LogTrace("Scheduler {SchedulerId} resumed", _schedulerId);
-        await _schedulerRepository.UpdateState(_schedulerId.Id, SchedulerState.Resumed).ConfigureAwait(false);
         _schedulerRunning = true;
+
+        return Task.CompletedTask;
     }
 
     public async Task Shutdown(CancellationToken token = default)
@@ -256,7 +279,10 @@ public class MongoDbJobStore : IJobStore
             }
         }
 
-        await _schedulerRepository.DeleteScheduler(_schedulerId.Id).ConfigureAwait(false);
+        if (clusterManager != null)
+        {
+            await clusterManager.Shutdown().ConfigureAwait(false);
+        }
     }
 
     public async Task StoreJobAndTrigger(
@@ -749,7 +775,9 @@ public class MongoDbJobStore : IJobStore
 
     public async Task<IReadOnlyCollection<string>> GetPausedTriggerGroups(CancellationToken cancellationToken = default)
     {
-        return new HashSet<string>(await _pausedTriggerGroupRepository.GetPausedTriggerGroups().ConfigureAwait(false));
+        var groups = await _pausedTriggerGroupRepository.GetPausedTriggerGroups().ConfigureAwait(false);
+
+        return new HashSet<string>(groups);
     }
 
     public async Task ResumeJob(JobKey jobKey, CancellationToken cancellationToken = default)
@@ -1335,16 +1363,29 @@ public class MongoDbJobStore : IJobStore
 
     private async Task<TriggerFiredBundle?> TriggerFiredInternal(IOperableTrigger trigger)
     {
+        // Make sure trigger wasn't deleted, paused, or completed...
         var state = await _triggerRepository.GetTriggerState(trigger.Key).ConfigureAwait(false);
         if (state != Models.TriggerState.Acquired)
         {
             return null;
         }
 
-        var job = await _jobDetailRepository.GetJob(trigger.JobKey).ConfigureAwait(false);
-        if (job == null)
+        JobDetail? job;
+        try
         {
-            return null;
+            job = await _jobDetailRepository.GetJob(trigger.JobKey).ConfigureAwait(false);
+            if (job == null)
+            {
+                return null;
+            }
+        }
+        catch (JobPersistenceException ex)
+        {
+            _logger.LogError(ex, "Error retrieving job, setting trigger state to ERROR.");
+            //await Delegate.UpdateTriggerState(conn, trigger.Key, StateError, cancellationToken).ConfigureAwait(false);
+            await _triggerRepository.UpdateTriggerState(trigger.Key, Models.TriggerState.Error);
+
+            throw;
         }
 
         ICalendar? calendar = null;
@@ -1831,6 +1872,58 @@ public class MongoDbJobStore : IJobStore
     {
         // TODO
         return true;
+    }
+
+    /// <summary>
+    /// Get a list of all scheduler instances in the cluster that may have failed.
+    /// This includes this scheduler if it is checking in for the first time.
+    /// </summary>
+    protected virtual async Task<IReadOnlyList<SchedulerStateRecord>> FindFailedInstances(
+        ConnectionAndTransactionHolder conn,
+        CancellationToken cancellationToken = default
+    )
+    {
+    }
+
+    /// <summary>
+    /// Create dummy <see cref="SchedulerStateRecord" /> objects for fired triggers
+    /// that have no scheduler state record.  Checkin timestamp and interval are
+    /// left as zero on these dummy <see cref="SchedulerStateRecord" /> objects.
+    /// </summary>
+    /// <param name="conn"></param>
+    /// <param name="schedulerStateRecords">List of all current <see cref="SchedulerStateRecord" />s</param>
+    /// <param name="cancellationToken">The cancellation instruction.</param>
+    private async Task<IReadOnlyList<SchedulerStateRecord>> FindOrphanedFailedInstances(
+        ConnectionAndTransactionHolder conn,
+        IReadOnlyCollection<SchedulerStateRecord> schedulerStateRecords,
+        CancellationToken cancellationToken
+    )
+    {
+        var orphanedInstances = new List<Scheduler>();
+
+        var names = _firedTriggerRepository.GetFiredTriggers()
+    }
+
+    protected DateTimeOffset CalcFailedIfAfter(SchedulerStateRecord rec)
+    {
+        TimeSpan passed = SystemTime.UtcNow() - LastCheckin;
+        TimeSpan ts = rec.CheckinInterval > passed ? rec.CheckinInterval : passed;
+        return rec.CheckinTimestamp.Add(ts).Add(ClusterCheckinMisfireThreshold);
+    }
+
+    protected virtual async Task<IReadOnlyList<SchedulerStateRecord>> ClusterCheckIn(
+        ConnectionAndTransactionHolder conn,
+        CancellationToken cancellationToken = default
+    )
+    {
+    }
+
+    protected virtual async Task ClusterRecover(
+        ConnectionAndTransactionHolder conn,
+        IReadOnlyList<SchedulerStateRecord> failedInstances,
+        CancellationToken cancellationToken = default
+    )
+    {
     }
 
     #endregion

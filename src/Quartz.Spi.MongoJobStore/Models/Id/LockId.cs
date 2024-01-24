@@ -1,11 +1,14 @@
+using JetBrains.Annotations;
+
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 
 namespace Quartz.Spi.MongoJobStore.Models.Id;
 
+[UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
 internal class LockId
 {
-    public string InstanceName { get; set; }
+    public required string InstanceName { get; set; }
 
     [BsonRepresentation(BsonType.String)]
     public LockType LockType { get; set; }

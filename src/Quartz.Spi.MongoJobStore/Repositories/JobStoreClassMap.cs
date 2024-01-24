@@ -19,8 +19,10 @@ internal static class JobStoreClassMap
             map =>
             {
                 map.AutoMap();
+
                 map.MapProperty(key => key.Group);
                 map.MapProperty(key => key.Name);
+
                 map.AddKnownType(typeof(JobKey));
             }
         );
@@ -28,8 +30,10 @@ internal static class JobStoreClassMap
             map =>
             {
                 map.AutoMap();
+
                 map.MapProperty(key => key.Group);
                 map.MapProperty(key => key.Name);
+
                 map.AddKnownType(typeof(TriggerKey));
             }
         );
@@ -48,6 +52,7 @@ internal static class JobStoreClassMap
                 map.MapCreator(triggerKey => new TriggerKey(triggerKey.Name, triggerKey.Group));
             }
         );
+
         BsonClassMap.RegisterClassMap<TimeOfDay>(
             map =>
             {
@@ -72,11 +77,13 @@ internal static class JobStoreClassMap
             map =>
             {
                 map.AutoMap();
-                var serializer =
-                    new EnumerableInterfaceImplementerSerializer<HashSet<DayOfWeek>, DayOfWeek>(
-                        new EnumSerializer<DayOfWeek>(BsonType.String)
+
+                map.MapProperty(trigger => trigger.DaysOfWeek)
+                    .SetSerializer(
+                        new EnumerableInterfaceImplementerSerializer<HashSet<DayOfWeek>, DayOfWeek>(
+                            new EnumSerializer<DayOfWeek>(BsonType.String)
+                        )
                     );
-                map.MapProperty(trigger => trigger.DaysOfWeek).SetSerializer(serializer);
             }
         );
     }

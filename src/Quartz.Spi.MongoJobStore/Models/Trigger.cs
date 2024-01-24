@@ -32,8 +32,12 @@ internal enum TriggerState
 )]
 internal abstract class Trigger
 {
-    [BsonId]
-    public TriggerId Id { get; set; }
+    public required string InstanceName { get; set; }
+
+    public required string Name { get; set; }
+
+    public required string Group { get; set; }
+
 
     public JobKey JobKey { get; set; }
 
@@ -71,12 +75,11 @@ internal abstract class Trigger
 
     protected Trigger(ITrigger trigger, TriggerState state, string instanceName)
     {
-        Id = new TriggerId
-        {
-            InstanceName = instanceName,
-            Group = trigger.Key.Group,
-            Name = trigger.Key.Name,
-        };
+        InstanceName = instanceName;
+        Group = trigger.Key.Group;
+        Name = trigger.Key.Name;
+
+
         JobKey = trigger.JobKey;
         Description = trigger.Description;
         NextFireTime = trigger.GetNextFireTimeUtc()?.UtcDateTime;
@@ -94,7 +97,7 @@ internal abstract class Trigger
 
     protected void FillTrigger(AbstractTrigger trigger)
     {
-        trigger.Key = new TriggerKey(Id.Name, Id.Group);
+        trigger.Key = new TriggerKey(Name, Group);
         trigger.JobKey = JobKey;
         trigger.CalendarName = CalendarName;
         trigger.Description = Description;
@@ -105,5 +108,10 @@ internal abstract class Trigger
         trigger.Priority = Priority;
         trigger.SetNextFireTimeUtc(NextFireTime);
         trigger.SetPreviousFireTimeUtc(PreviousFireTime);
+    }
+
+    public TriggerKey GetTriggerKey()
+    {
+        return new TriggerKey(Name, Group);
     }
 }

@@ -16,9 +16,6 @@ internal static class LogProvider
         _loggerFactory = loggerFactory;
     }
 
-    public static ILogger CreateLogger(string category) =>
-        _loggerFactory != null ? _loggerFactory.CreateLogger(category) : NullLogger.Instance;
-
     public static ILogger<T> CreateLogger<T>() =>
         _loggerFactory != null ? _loggerFactory.CreateLogger<T>() : NullLogger<T>.Instance;
 }

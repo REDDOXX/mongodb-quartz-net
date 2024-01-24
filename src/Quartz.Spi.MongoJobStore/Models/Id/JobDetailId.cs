@@ -1,21 +1,24 @@
+using JetBrains.Annotations;
+
 namespace Quartz.Spi.MongoJobStore.Models.Id;
 
+[UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
 internal class JobDetailId
 {
     /// <summary>
     /// schedulerName
     /// </summary>
-    public string InstanceName { get; set; }
+    public required string InstanceName { get; set; }
 
     /// <summary>
     /// jobName
     /// </summary>
-    public string Name { get; set; }
+    public required string Name { get; set; }
 
     /// <summary>
     /// jobGroup
     /// </summary>
-    public string Group { get; set; }
+    public required string Group { get; set; }
 
 
     public JobDetailId()

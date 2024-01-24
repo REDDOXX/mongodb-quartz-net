@@ -1,10 +1,13 @@
+using JetBrains.Annotations;
+
 namespace Quartz.Spi.MongoJobStore.Models.Id;
 
-internal class SchedulerId // Todo: ValueType?
+[UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
+internal class SchedulerId
 {
-    public string InstanceName { get; set; }
+    public required string InstanceName { get; set; }
 
-    public string Id { get; set; }
+    public required string Id { get; set; }
 
 
     public SchedulerId()

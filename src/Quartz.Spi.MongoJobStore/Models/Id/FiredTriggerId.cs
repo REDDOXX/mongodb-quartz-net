@@ -1,10 +1,13 @@
+using JetBrains.Annotations;
+
 namespace Quartz.Spi.MongoJobStore.Models.Id;
 
+[UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
 internal class FiredTriggerId
 {
-    public string InstanceName { get; set; }
+    public required string InstanceName { get; set; }
 
-    public string FiredInstanceId { get; set; }
+    public required string FiredInstanceId { get; set; }
 
 
     public FiredTriggerId()

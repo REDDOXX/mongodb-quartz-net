@@ -12,36 +12,49 @@ internal class FiredTriggerRepository : BaseRepository<FiredTrigger>
     {
     }
 
-    public override Task EnsureIndex()
+    public override async Task EnsureIndex()
     {
-        return Task.CompletedTask;
+        await Collection.Indexes.CreateOneAsync(
+            new CreateIndexModel<FiredTrigger>(
+                IndexBuilder.Combine(
+                    IndexBuilder.Ascending(x => x.InstanceName),
+                    IndexBuilder.Ascending(x => x.FiredInstanceId)
+                ),
+                new CreateIndexOptions
+                {
+                    Unique = true,
+                }
+            )
+        );
     }
 
     public async Task<List<FiredTrigger>> GetFiredTriggers(JobKey jobKey)
     {
-        return await Collection.Find(trigger => trigger.Id.InstanceName == InstanceName && trigger.JobKey == jobKey)
+        var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) & //
+                     FilterBuilder.Eq(x => x.JobKey, jobKey);
+
+        return await Collection
+            //
+            .Find(filter)
             .ToListAsync()
             .ConfigureAwait(false);
     }
 
     public async Task<List<FiredTrigger>> GetFiredTriggers(string instanceId)
     {
-        return await Collection
-            .Find(trigger => trigger.Id.InstanceName == InstanceName && trigger.InstanceId == instanceId)
-            .ToListAsync()
-            .ConfigureAwait(false);
+        var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) &
+                     FilterBuilder.Eq(x => x.InstanceId, instanceId);
+
+        return await Collection.Find(filter).ToListAsync().ConfigureAwait(false);
     }
 
     public async Task<List<FiredTrigger>> GetRecoverableFiredTriggers(string instanceId)
     {
-        return await Collection
-            .Find(
-                trigger => trigger.Id.InstanceName == InstanceName &&
-                           trigger.InstanceId == instanceId &&
-                           trigger.RequestsRecovery
-            )
-            .ToListAsync()
-            .ConfigureAwait(false);
+        var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) &
+                     FilterBuilder.Eq(x => x.InstanceId, instanceId) &
+                     FilterBuilder.Eq(x => x.RequestsRecovery, true);
+
+        return await Collection.Find(filter).ToListAsync().ConfigureAwait(false);
     }
 
     public async Task AddFiredTrigger(FiredTrigger firedTrigger)
@@ -51,20 +64,26 @@ internal class FiredTriggerRepository : BaseRepository<FiredTrigger>
 
     public async Task DeleteFiredTrigger(string firedInstanceId)
     {
-        await Collection.DeleteOneAsync(trigger => trigger.Id == new FiredTriggerId(firedInstanceId, InstanceName))
-            .ConfigureAwait(false);
+        var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) &
+                     FilterBuilder.Eq(x => x.FiredInstanceId, firedInstanceId);
+
+        await Collection.DeleteOneAsync(filter).ConfigureAwait(false);
     }
 
     public async Task<long> DeleteFiredTriggersByInstanceId(string instanceId)
     {
-        var result = await Collection
-            .DeleteManyAsync(trigger => trigger.Id.InstanceName == InstanceName && trigger.InstanceId == instanceId)
-            .ConfigureAwait(false);
+        var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) &
+                     FilterBuilder.Eq(x => x.InstanceId, instanceId);
+
+        var result = await Collection.DeleteManyAsync(filter).ConfigureAwait(false);
         return result.DeletedCount;
     }
 
     public async Task UpdateFiredTrigger(FiredTrigger firedTrigger)
     {
-        await Collection.ReplaceOneAsync(trigger => trigger.Id == firedTrigger.Id, firedTrigger).ConfigureAwait(false);
+        var filter = FilterBuilder.Eq(x => x.InstanceName, firedTrigger.InstanceName) &
+                     FilterBuilder.Eq(x => x.FiredInstanceId, firedTrigger.FiredInstanceId);
+
+        await Collection.ReplaceOneAsync(filter, firedTrigger).ConfigureAwait(false);
     }
 }

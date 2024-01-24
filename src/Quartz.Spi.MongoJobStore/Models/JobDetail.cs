@@ -15,7 +15,21 @@ namespace Quartz.Spi.MongoJobStore.Models;
 [UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
 internal class JobDetail
 {
-    public JobDetailId Id { get; set; }
+    /// <summary>
+    /// schedulerName
+    /// </summary>
+    public required string InstanceName { get; set; }
+
+    /// <summary>
+    /// jobName
+    /// </summary>
+    public required string Name { get; set; }
+
+    /// <summary>
+    /// jobGroup
+    /// </summary>
+    public required string Group { get; set; }
+
 
     [BsonIgnoreIfNull]
     public string? Description { get; set; }
@@ -58,7 +72,10 @@ internal class JobDetail
 
     public JobDetail(IJobDetail jobDetail, string instanceName)
     {
-        Id = new JobDetailId(jobDetail.Key, instanceName);
+        InstanceName = instanceName;
+        Name = jobDetail.Key.Name;
+        Group = jobDetail.Key.Group;
+
         Description = jobDetail.Description;
         JobType = jobDetail.JobType;
         JobDataMap = jobDetail.JobDataMap;
@@ -73,11 +90,16 @@ internal class JobDetail
         // The missing properties are figured out at runtime from the job type attributes
 
         return JobBuilder.Create(JobType)
-            .WithIdentity(new JobKey(Id.Name, Id.Group))
+            .WithIdentity(GetJobKey())
             .WithDescription(Description)
             .SetJobData(JobDataMap)
             .StoreDurably(Durable)
             .RequestRecovery(RequestsRecovery)
             .Build();
+    }
+
+    public JobKey GetJobKey()
+    {
+        return new JobKey(Name, Group);
     }
 }
