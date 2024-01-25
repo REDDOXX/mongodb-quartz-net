@@ -73,6 +73,7 @@ internal class CalendarRepository : BaseRepository<Calendar>
 
     public async Task<long> GetCount()
     {
+        // SELECT COUNT(CALENDAR_NAME)  FROM CALENDARS WHERE SCHED_NAME = @schedulerName
         var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName);
 
         return await Collection
@@ -98,6 +99,8 @@ internal class CalendarRepository : BaseRepository<Calendar>
 
     public async Task<long> DeleteCalendar(string calendarName)
     {
+        // DELETE FROM CALENDARS WHERE SCHED_NAME = @schedulerName AND CALENDAR_NAME = @calendarName
+
         var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) &
                      FilterBuilder.Eq(x => x.CalendarName, calendarName);
 

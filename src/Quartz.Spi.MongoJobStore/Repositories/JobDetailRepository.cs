@@ -15,12 +15,13 @@ internal class JobDetailRepository : BaseRepository<JobDetail>
 
     public override async Task EnsureIndex()
     {
+        // PRIMARY KEY (sched_name,job_name,job_group)
         await Collection.Indexes.CreateOneAsync(
                 new CreateIndexModel<JobDetail>(
-                    Builders<JobDetail>.IndexKeys.Combine(
-                        Builders<JobDetail>.IndexKeys.Ascending(x => x.InstanceName),
-                        Builders<JobDetail>.IndexKeys.Ascending(x => x.Name),
-                        Builders<JobDetail>.IndexKeys.Ascending(x => x.Group)
+                    IndexBuilder.Combine(
+                        IndexBuilder.Ascending(x => x.InstanceName),
+                        IndexBuilder.Ascending(x => x.Name),
+                        IndexBuilder.Ascending(x => x.Group)
                     ),
                     new CreateIndexOptions
                     {
@@ -68,6 +69,9 @@ internal class JobDetailRepository : BaseRepository<JobDetail>
 
     public async Task<List<JobKey>> GetJobsKeys(GroupMatcher<JobKey> matcher)
     {
+        // SELECT JOB_NAME, JOB_GROUP FROM JOB_DETAILS WHERE SCHED_NAME = @schedulerName AND JOB_GROUP = @jobGroup
+        // SELECT JOB_NAME, JOB_GROUP FROM JOB_DETAILS WHERE SCHED_NAME = @schedulerName AND JOB_GROUP LIKE @jobGroup
+
         var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) &
                      FilterBuilder.Regex(x => x.Group, matcher.ToBsonRegularExpression());
 
@@ -81,6 +85,8 @@ internal class JobDetailRepository : BaseRepository<JobDetail>
 
     public async Task<List<string>> GetJobGroupNames()
     {
+        // SELECT DISTINCT(JOB_GROUP) FROM JOB_DETAILS WHERE SCHED_NAME = @schedulerName
+
         var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName);
 
         return await Collection
@@ -142,6 +148,7 @@ internal class JobDetailRepository : BaseRepository<JobDetail>
 
     public async Task<long> DeleteJob(JobKey key)
     {
+        // DELETE FROM JOB_DETAILS WHERE SCHED_NAME = @schedulerName AND JOB_NAME = @jobName AND JOB_GROUP = @jobGroup
         var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) &
                      FilterBuilder.Eq(x => x.Name, key.Name) &
                      FilterBuilder.Eq(x => x.Group, key.Group);
@@ -152,6 +159,8 @@ internal class JobDetailRepository : BaseRepository<JobDetail>
 
     public async Task<bool> JobExists(JobKey jobKey)
     {
+        // SELECT 1 FROM JOB_DETAILS WHERE SCHED_NAME = @schedulerName AND JOB_NAME = @jobName AND JOB_GROUP = @jobGroup
+
         var filter = Builders<JobDetail>.Filter.Eq(x => x.InstanceName, InstanceName) &
                      Builders<JobDetail>.Filter.Eq(x => x.Name, jobKey.Name) &
                      Builders<JobDetail>.Filter.Eq(x => x.Group, jobKey.Group);
@@ -161,6 +170,8 @@ internal class JobDetailRepository : BaseRepository<JobDetail>
 
     public async Task<long> GetCount()
     {
+        // SELECT COUNT(JOB_NAME)  FROM JOB_DETAILS WHERE SCHED_NAME = @schedulerName
+
         var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName);
 
         return await Collection

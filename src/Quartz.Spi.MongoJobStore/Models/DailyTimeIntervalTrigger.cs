@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 using JetBrains.Annotations;
 
 using MongoDB.Bson;
@@ -17,9 +19,9 @@ internal class DailyTimeIntervalTrigger : Trigger
 
     public int RepeatInterval { get; set; }
 
-    public TimeOfDay? StartTimeOfDay { get; set; }
+    public TimeOfDay StartTimeOfDay { get; set; }
 
-    public TimeOfDay? EndTimeOfDay { get; set; }
+    public TimeOfDay EndTimeOfDay { get; set; }
 
     public HashSet<DayOfWeek> DaysOfWeek { get; set; }
 
@@ -27,10 +29,12 @@ internal class DailyTimeIntervalTrigger : Trigger
 
     public string TimeZone { get; set; }
 
+
     public DailyTimeIntervalTrigger()
     {
     }
 
+    [SetsRequiredMembers]
     public DailyTimeIntervalTrigger(IDailyTimeIntervalTrigger trigger, TriggerState state, string instanceName)
         : base(trigger, state, instanceName)
     {
@@ -51,8 +55,8 @@ internal class DailyTimeIntervalTrigger : Trigger
             RepeatCount = RepeatCount,
             RepeatIntervalUnit = RepeatIntervalUnit,
             RepeatInterval = RepeatInterval,
-            StartTimeOfDay = StartTimeOfDay ?? new TimeOfDay(0, 0, 0),
-            EndTimeOfDay = EndTimeOfDay ?? new TimeOfDay(23, 59, 59),
+            StartTimeOfDay = StartTimeOfDay,
+            EndTimeOfDay = EndTimeOfDay,
             DaysOfWeek = new HashSet<DayOfWeek>(DaysOfWeek),
             TimesTriggered = TimesTriggered,
             TimeZone = TimeZoneInfo.FindSystemTimeZoneById(TimeZone),

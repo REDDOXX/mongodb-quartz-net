@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 using JetBrains.Annotations;
 
 using MongoDB.Bson.Serialization.Attributes;
@@ -25,6 +27,7 @@ internal class Calendar
     {
     }
 
+    [SetsRequiredMembers]
     public Calendar(string calendarName, ICalendar calendar, string instanceName)
     {
         InstanceName = instanceName;

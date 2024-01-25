@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 
 using JetBrains.Annotations;
@@ -6,7 +7,6 @@ using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 
 using Quartz.Impl.Triggers;
-using Quartz.Spi.MongoJobStore.Models.Id;
 
 namespace Quartz.Spi.MongoJobStore.Models;
 
@@ -24,25 +24,52 @@ internal class FiredTrigger
     public required string FiredInstanceId { get; set; }
 
 
+    /// <summary>
+    /// trigger_name, trigger_group
+    /// </summary>
     public TriggerKey TriggerKey { get; set; }
 
+    /// <summary>
+    /// job_name, job_group
+    /// </summary>
     public JobKey JobKey { get; set; }
 
+    /// <summary>
+    /// instance_name
+    /// </summary>
     public string InstanceId { get; set; }
 
+    /// <summary>
+    /// fired_time
+    /// </summary>
     [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
     public DateTime Fired { get; set; }
 
+    /// <summary>
+    /// sched_time
+    /// </summary>
     [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
     public DateTime? Scheduled { get; set; }
 
+    /// <summary>
+    /// priority
+    /// </summary>
     public int Priority { get; set; }
 
+    /// <summary>
+    /// state
+    /// </summary>
     [BsonRepresentation(BsonType.String)]
     public TriggerState State { get; set; }
 
+    /// <summary>
+    /// is_nonconcurrent
+    /// </summary>
     public bool ConcurrentExecutionDisallowed { get; set; }
 
+    /// <summary>
+    /// requests_recovery
+    /// </summary>
     public bool RequestsRecovery { get; set; }
 
 
@@ -50,6 +77,7 @@ internal class FiredTrigger
     {
     }
 
+    [SetsRequiredMembers]
     public FiredTrigger(string firedInstanceId, Trigger trigger, JobDetail? jobDetail)
     {
         InstanceName = trigger.InstanceName;
@@ -73,11 +101,10 @@ internal class FiredTrigger
     {
         var firedTime = new DateTimeOffset(Fired);
         var scheduledTime = Scheduled.HasValue ? new DateTimeOffset(Scheduled.Value) : DateTimeOffset.MinValue;
-        var recoveryTrigger = new SimpleTriggerImpl(
-            $"recover_{InstanceId}_{Guid.NewGuid()}",
-            SchedulerConstants.DefaultRecoveryGroup,
-            scheduledTime
-        )
+
+        var name = $"recover_{InstanceId}_{Guid.NewGuid()}";
+
+        var recoveryTrigger = new SimpleTriggerImpl(name, SchedulerConstants.DefaultRecoveryGroup, scheduledTime)
         {
             JobName = JobKey.Name,
             JobGroup = JobKey.Group,
@@ -85,6 +112,7 @@ internal class FiredTrigger
             MisfireInstruction = MisfireInstruction.IgnoreMisfirePolicy,
             JobDataMap = jobDataMap,
         };
+
         recoveryTrigger.JobDataMap.Put(SchedulerConstants.FailedJobOriginalTriggerName, TriggerKey.Name);
         recoveryTrigger.JobDataMap.Put(SchedulerConstants.FailedJobOriginalTriggerGroup, TriggerKey.Group);
         recoveryTrigger.JobDataMap.Put(
@@ -95,6 +123,7 @@ internal class FiredTrigger
             SchedulerConstants.FailedJobOriginalTriggerScheduledFiretime,
             Convert.ToString(scheduledTime, CultureInfo.InvariantCulture)
         );
+
         return recoveryTrigger;
     }
 }

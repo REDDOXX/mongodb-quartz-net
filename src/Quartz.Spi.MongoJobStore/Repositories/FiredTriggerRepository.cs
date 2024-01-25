@@ -14,6 +14,7 @@ internal class FiredTriggerRepository : BaseRepository<FiredTrigger>
 
     public override async Task EnsureIndex()
     {
+        // PRIMARY KEY (sched_name,entry_id)
         await Collection.Indexes.CreateOneAsync(
             new CreateIndexModel<FiredTrigger>(
                 IndexBuilder.Combine(
@@ -25,6 +26,42 @@ internal class FiredTriggerRepository : BaseRepository<FiredTrigger>
                     Unique = true,
                 }
             )
+        );
+
+        // create index idx_qrtz_ft_trig_name on qrtz_fired_triggers(trigger_name);
+        await Collection.Indexes.CreateOneAsync(
+            new CreateIndexModel<FiredTrigger>(IndexBuilder.Ascending(x => x.TriggerKey.Name))
+        );
+
+        // create index idx_qrtz_ft_trig_group on qrtz_fired_triggers(trigger_group);
+        await Collection.Indexes.CreateOneAsync(
+            new CreateIndexModel<FiredTrigger>(IndexBuilder.Ascending(x => x.TriggerKey.Group))
+        );
+
+        // create index idx_qrtz_ft_trig_nm_gp on qrtz_fired_triggers(sched_name,trigger_name,trigger_group);
+        await Collection.Indexes.CreateOneAsync(
+            new CreateIndexModel<FiredTrigger>(
+                IndexBuilder.Combine(
+                    IndexBuilder.Ascending(x => x.InstanceName),
+                    IndexBuilder.Ascending(x => x.TriggerKey.Name),
+                    IndexBuilder.Ascending(x => x.TriggerKey.Group)
+                )
+            )
+        );
+
+        // create index idx_qrtz_ft_trig_inst_name on qrtz_fired_triggers(instance_name);
+        await Collection.Indexes.CreateOneAsync(
+            new CreateIndexModel<FiredTrigger>(IndexBuilder.Ascending(x => x.InstanceId))
+        );
+
+        // create index idx_qrtz_ft_job_name on qrtz_fired_triggers(job_name);
+        await Collection.Indexes.CreateOneAsync(
+            new CreateIndexModel<FiredTrigger>(IndexBuilder.Ascending(x => x.JobKey.Name))
+        );
+
+        // create index idx_qrtz_ft_job_group on qrtz_fired_triggers(job_group);
+        await Collection.Indexes.CreateOneAsync(
+            new CreateIndexModel<FiredTrigger>(IndexBuilder.Ascending(x => x.JobKey.Group))
         );
     }
 
@@ -46,6 +83,23 @@ internal class FiredTriggerRepository : BaseRepository<FiredTrigger>
                      FilterBuilder.Eq(x => x.InstanceId, instanceId);
 
         return await Collection.Find(filter).ToListAsync().ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Select the distinct instance names of all fired-trigger records.
+    /// </summary>
+    /// <returns></returns>
+    public async Task<List<string>> SelectFiredTriggerInstanceNames()
+    {
+        // SELECT DISTINCT INSTANCE_NAME FROM FIRED_TRIGGERS WHERE SCHED_NAME = @schedulerName
+
+        var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName);
+
+        return await Collection
+            //
+            .Distinct(x => x.InstanceId, filter)
+            .ToListAsync()
+            .ConfigureAwait(false);
     }
 
     public async Task<List<FiredTrigger>> GetRecoverableFiredTriggers(string instanceId)

@@ -15,6 +15,7 @@ internal class PausedTriggerGroupRepository : BaseRepository<PausedTriggerGroup>
 
     public override async Task EnsureIndex()
     {
+        // PRIMARY KEY (sched_name,trigger_group)
         await Collection.Indexes.CreateOneAsync(
             new CreateIndexModel<PausedTriggerGroup>(
                 IndexBuilder.Combine(
@@ -37,6 +38,8 @@ internal class PausedTriggerGroupRepository : BaseRepository<PausedTriggerGroup>
     /// <returns></returns>
     public async Task<List<string>> GetPausedTriggerGroups()
     {
+        // SELECT TRIGGER_GROUP FROM PAUSED_TRIGGER_GRPS WHERE SCHED_NAME = @schedulerName
+
         return await Collection
             //
             .Find(group => group.InstanceName == InstanceName)
@@ -47,6 +50,7 @@ internal class PausedTriggerGroupRepository : BaseRepository<PausedTriggerGroup>
 
     public async Task<bool> IsTriggerGroupPaused(string group)
     {
+        // SELECT TRIGGER_GROUP FROM PAUSED_TRIGGER_GRPS WHERE SCHED_NAME = @schedulerName AND TRIGGER_GROUP = @triggerGroup
         var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) & //
                      FilterBuilder.Eq(x => x.Group, group);
 
@@ -59,6 +63,7 @@ internal class PausedTriggerGroupRepository : BaseRepository<PausedTriggerGroup>
 
     public async Task AddPausedTriggerGroup(string group)
     {
+        // INSERT INTO PAUSED_TRIGGER_GRPS (SCHED_NAME, TRIGGER_GROUP) VALUES (@schedulerName, @triggerGroup)
         await Collection.InsertOneAsync(
                 new PausedTriggerGroup
                 {
@@ -71,16 +76,16 @@ internal class PausedTriggerGroupRepository : BaseRepository<PausedTriggerGroup>
 
     public async Task DeletePausedTriggerGroup(GroupMatcher<TriggerKey> matcher)
     {
-        var regex = matcher.ToBsonRegularExpression().ToRegex();
-
-        var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) & //
-                     FilterBuilder.Regex(x => x.Group, regex);
+        // DELETE FROM PAUSED_TRIGGER_GRPS WHERE SCHED_NAME = @schedulerName AND TRIGGER_GROUP LIKE @triggerGroup
+        var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) &
+                     FilterBuilder.Regex(x => x.Group, matcher.ToBsonRegularExpression());
 
         await Collection.DeleteManyAsync(filter).ConfigureAwait(false);
     }
 
     public async Task DeletePausedTriggerGroup(string groupName)
     {
+        // DELETE FROM PAUSED_TRIGGER_GRPS WHERE SCHED_NAME = @schedulerName AND TRIGGER_GROUP LIKE @triggerGroup
         var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) & // 
                      FilterBuilder.Eq(x => x.Group, groupName);
 

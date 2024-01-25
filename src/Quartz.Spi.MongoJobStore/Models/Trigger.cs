@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 using JetBrains.Annotations;
 
 using MongoDB.Bson;
@@ -32,48 +34,95 @@ internal enum TriggerState
 )]
 internal abstract class Trigger
 {
+    /// <summary>
+    /// sched_name
+    /// </summary>
     public required string InstanceName { get; set; }
 
+    /// <summary>
+    /// trigger_name
+    /// </summary>
     public required string Name { get; set; }
 
+    /// <summary>
+    /// trigger_group
+    /// </summary>
     public required string Group { get; set; }
 
 
-    public JobKey JobKey { get; set; }
-
+    /// <summary>
+    /// description
+    /// </summary>
     [BsonIgnoreIfNull]
     public string? Description { get; set; }
 
+    /// <summary>
+    /// next_fire_time
+    /// </summary>
     [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
     public DateTime? NextFireTime { get; set; }
 
+    /// <summary>
+    /// prev_fire_time
+    /// </summary>
     [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
     public DateTime? PreviousFireTime { get; set; }
 
+    /// <summary>
+    /// trigger_state
+    /// </summary>
     [BsonRepresentation(BsonType.String)]
     public TriggerState State { get; set; }
 
+    /// <summary>
+    /// start_time
+    /// </summary>
     [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
     public DateTime StartTime { get; set; }
 
+    /// <summary>
+    /// end_time
+    /// </summary>
     [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
     public DateTime? EndTime { get; set; }
 
+    /// <summary>
+    /// calendar_name
+    /// </summary>
+    [BsonIgnoreIfNull]
     public string? CalendarName { get; set; }
 
+    /// <summary>
+    /// misfire_instr
+    /// </summary>
     public int MisfireInstruction { get; set; }
 
+    /// <summary>
+    /// priority
+    /// </summary>
     public int Priority { get; set; }
 
+    /// <summary>
+    /// trigger_type
+    /// </summary>
     public string Type { get; set; }
 
+    /// <summary>
+    /// job_data
+    /// </summary>
     public JobDataMap JobDataMap { get; set; }
+
+    /// <summary>
+    /// job_name, job_group
+    /// </summary>
+    public JobKey JobKey { get; set; }
 
 
     protected Trigger()
     {
     }
 
+    [SetsRequiredMembers]
     protected Trigger(ITrigger trigger, TriggerState state, string instanceName)
     {
         InstanceName = instanceName;
@@ -107,6 +156,7 @@ internal abstract class Trigger
         trigger.EndTimeUtc = EndTime;
         trigger.StartTimeUtc = StartTime;
         trigger.Priority = Priority;
+
         trigger.SetNextFireTimeUtc(NextFireTime);
         trigger.SetPreviousFireTimeUtc(PreviousFireTime);
     }

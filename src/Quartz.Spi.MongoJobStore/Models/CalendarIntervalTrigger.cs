@@ -1,3 +1,6 @@
+using System.Diagnostics.CodeAnalysis;
+using System.Security.Cryptography;
+
 using JetBrains.Annotations;
 
 using MongoDB.Bson;
@@ -28,6 +31,7 @@ internal class CalendarIntervalTrigger : Trigger
     {
     }
 
+    [SetsRequiredMembers]
     public CalendarIntervalTrigger(ICalendarIntervalTrigger trigger, TriggerState state, string instanceName)
         : base(trigger, state, instanceName)
     {

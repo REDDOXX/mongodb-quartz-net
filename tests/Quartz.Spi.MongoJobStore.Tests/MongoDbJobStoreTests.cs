@@ -37,15 +37,6 @@ public class MongoDbJobStoreTests : BaseStoreTests, IDisposable
     }
 
     [Fact]
-    public void HelloWorld()
-    {
-        var t = StdAdoConstants.SqlSelectCalendar;
-
-        Debugger.Break();
-    }
-
-
-    [Fact]
     public async Task AddJobTest()
     {
         var job = JobBuilder.Create<SimpleJob>().WithIdentity("j1").StoreDurably().Build();

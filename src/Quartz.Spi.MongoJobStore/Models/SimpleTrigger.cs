@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 using JetBrains.Annotations;
 
 using Quartz.Impl.Triggers;
@@ -18,6 +20,7 @@ internal class SimpleTrigger : Trigger
     {
     }
 
+    [SetsRequiredMembers]
     public SimpleTrigger(ISimpleTrigger trigger, TriggerState state, string instanceName)
         : base(trigger, state, instanceName)
     {

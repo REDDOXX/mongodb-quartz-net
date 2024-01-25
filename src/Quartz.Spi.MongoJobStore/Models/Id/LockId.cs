@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 using JetBrains.Annotations;
 
 using MongoDB.Bson;
@@ -17,6 +19,7 @@ internal class LockId
     {
     }
 
+    [SetsRequiredMembers]
     public LockId(LockType lockType, string instanceName)
     {
         LockType = lockType;

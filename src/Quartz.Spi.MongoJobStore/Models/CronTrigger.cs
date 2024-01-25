@@ -1,11 +1,16 @@
+using System.Diagnostics.CodeAnalysis;
+
 using Quartz.Impl.Triggers;
 
 namespace Quartz.Spi.MongoJobStore.Models;
 
 internal class CronTrigger : Trigger
 {
-    public string CronExpression { get; set; }
+    public string? CronExpression { get; set; }
 
+    /// <summary>
+    /// time_zone_id
+    /// </summary>
     public string TimeZone { get; set; }
 
 
@@ -13,6 +18,7 @@ internal class CronTrigger : Trigger
     {
     }
 
+    [SetsRequiredMembers]
     public CronTrigger(ICronTrigger trigger, TriggerState state, string instanceName)
         : base(trigger, state, instanceName)
     {
