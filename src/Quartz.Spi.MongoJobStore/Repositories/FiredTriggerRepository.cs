@@ -77,8 +77,10 @@ internal class FiredTriggerRepository : BaseRepository<FiredTrigger>
             .ConfigureAwait(false);
     }
 
-    public async Task<List<FiredTrigger>> GetFiredTriggers(string instanceId)
+    public async Task<List<FiredTrigger>> SelectInstancesFiredTriggerRecords(string instanceId)
     {
+        // SELECT * FROM FIRED_TRIGGERS WHERE SCHED_NAME = @schedulerName AND INSTANCE_NAME = @instanceName
+
         var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) &
                      FilterBuilder.Eq(x => x.InstanceId, instanceId);
 
@@ -89,7 +91,7 @@ internal class FiredTriggerRepository : BaseRepository<FiredTrigger>
     /// Select the distinct instance names of all fired-trigger records.
     /// </summary>
     /// <returns></returns>
-    public async Task<List<string>> SelectFiredTriggerInstanceNames()
+    public async Task<List<string>> SelectFiredTriggerInstanceIds()
     {
         // SELECT DISTINCT INSTANCE_NAME FROM FIRED_TRIGGERS WHERE SCHED_NAME = @schedulerName
 
@@ -100,6 +102,22 @@ internal class FiredTriggerRepository : BaseRepository<FiredTrigger>
             .Distinct(x => x.InstanceId, filter)
             .ToListAsync()
             .ConfigureAwait(false);
+    }
+
+    public async Task<List<FiredTrigger>> SelectFiredTriggerRecords(string? triggerName, string group)
+    {
+        // SELECT * FROM FIRED_TRIGGERS WHERE SCHED_NAME = @schedulerName AND TRIGGER_NAME = @triggerName AND TRIGGER_GROUP = @triggerGroup
+        // SELECT * FROM FIRED_TRIGGERS WHERE SCHED_NAME = @schedulerName AND TRIGGER_GROUP = @triggerGroup
+
+        var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) &
+                     FilterBuilder.Eq(x => x.TriggerKey.Group, group);
+
+        if (triggerName != null)
+        {
+            filter &= FilterBuilder.Eq(x => x.TriggerKey.Name, triggerName);
+        }
+
+        return await Collection.Find(filter).ToListAsync().ConfigureAwait(false);
     }
 
     public async Task<List<FiredTrigger>> GetRecoverableFiredTriggers(string instanceId)
@@ -124,14 +142,36 @@ internal class FiredTriggerRepository : BaseRepository<FiredTrigger>
         await Collection.DeleteOneAsync(filter).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Delete all fired triggers of the given instance.
+    /// </summary>
+    /// <param name="instanceId"></param>
+    /// <returns></returns>
     public async Task<long> DeleteFiredTriggersByInstanceId(string instanceId)
     {
+        // DELETE FROM FIRED_TRIGGERS WHERE SCHED_NAME = @schedulerName AND INSTANCE_NAME = @instanceName
+
         var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) &
                      FilterBuilder.Eq(x => x.InstanceId, instanceId);
 
         var result = await Collection.DeleteManyAsync(filter).ConfigureAwait(false);
         return result.DeletedCount;
     }
+
+    /// <summary>
+    /// Delete all fired triggers.
+    /// </summary>
+    /// <returns></returns>
+    public async Task<long> DeleteFiredTriggers()
+    {
+        // DELETE FROM FIRED_TRIGGERS WHERE SCHED_NAME = @schedulerName
+
+        var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName);
+
+        var result = await Collection.DeleteManyAsync(filter).ConfigureAwait(false);
+        return result.DeletedCount;
+    }
+
 
     public async Task UpdateFiredTrigger(FiredTrigger firedTrigger)
     {

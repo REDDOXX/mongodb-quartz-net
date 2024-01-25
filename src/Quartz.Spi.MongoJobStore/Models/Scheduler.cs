@@ -1,4 +1,8 @@
+using System.Diagnostics.CodeAnalysis;
+
 using JetBrains.Annotations;
+
+using MongoDB.Bson.Serialization.Attributes;
 
 namespace Quartz.Spi.MongoJobStore.Models;
 
@@ -8,12 +12,14 @@ internal class Scheduler
     /// <summary>
     /// sched_name
     /// </summary>
-    public required string InstanceName { get; set; }
+    [BsonRequired]
+    public required string SchedulerName { get; set; }
 
     /// <summary>
     /// instance_name
     /// </summary>
-    public required string Name { get; set; }
+    [BsonRequired]
+    public required string InstanceId { get; set; }
 
     /// <summary>
     /// last_checkin_time
@@ -24,4 +30,16 @@ internal class Scheduler
     /// checkin_interval
     /// </summary>
     public TimeSpan CheckInInterval { get; set; }
+
+
+    public Scheduler()
+    {
+    }
+
+    [SetsRequiredMembers]
+    public Scheduler(string schedulerName, string instanceId)
+    {
+        SchedulerName = schedulerName;
+        InstanceId = instanceId;
+    }
 }

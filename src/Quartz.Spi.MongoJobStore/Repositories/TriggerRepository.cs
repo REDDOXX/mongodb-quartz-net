@@ -3,7 +3,6 @@ using MongoDB.Driver;
 using Quartz.Impl.Matchers;
 using Quartz.Spi.MongoJobStore.Extensions;
 using Quartz.Spi.MongoJobStore.Models;
-using Quartz.Spi.MongoJobStore.Models.Id;
 
 namespace Quartz.Spi.MongoJobStore.Repositories;
 
@@ -132,6 +131,8 @@ internal class TriggerRepository : BaseRepository<Trigger>
 
     public async Task<JobDataMap> GetTriggerJobDataMap(TriggerKey key)
     {
+        // SELECT JOB_DATA FROM TRIGGERS WHERE SCHED_NAME = @schedulerName AND TRIGGER_NAME = @triggerName AND TRIGGER_GROUP = @triggerGroup
+
         var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) &
                      FilterBuilder.Eq(x => x.Name, key.Name) &
                      FilterBuilder.Eq(x => x.Group, key.Group);

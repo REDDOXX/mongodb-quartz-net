@@ -13,12 +13,13 @@ internal class SchedulerRepository : BaseRepository<Scheduler>
 
     public override async Task EnsureIndex()
     {
+        // PRIMARY KEY (sched_name,instance_name)
         await Collection.Indexes.CreateOneAsync(
             new CreateIndexModel<Scheduler>(
                 IndexBuilder.Combine(
                     //
-                    IndexBuilder.Ascending(x => x.InstanceName),
-                    IndexBuilder.Ascending(x => x.Name)
+                    IndexBuilder.Ascending(x => x.SchedulerName),
+                    IndexBuilder.Ascending(x => x.InstanceId)
                 ),
                 new CreateIndexOptions
                 {
@@ -28,37 +29,70 @@ internal class SchedulerRepository : BaseRepository<Scheduler>
         );
     }
 
-    public async Task AddScheduler(Scheduler scheduler)
+    public async Task AddScheduler(string instanceId, DateTimeOffset checkInTime, TimeSpan interval)
     {
-        var filter = FilterBuilder.Eq(x => x.InstanceName, scheduler.InstanceName) &
-                     FilterBuilder.Eq(x => x.Name, scheduler.Name);
+        // INSERT INTO SCHEDULER_STATE (SCHED_NAME, INSTANCE_NAME, LAST_CHECKIN_TIME, CHECKIN_INTERVAL)
+        // VALUES(@schedulerName, @instanceName, @lastCheckinTime, @checkinInterval)
 
-        await Collection.ReplaceOneAsync(
-                filter,
-                scheduler,
-                new ReplaceOptions
+        // AddCommandParameter(cmd, "schedulerName", schedName);
+        // AddCommandParameter(cmd, "instanceName", instanceName);
+
+        await Collection.InsertOneAsync(
+                new Scheduler
                 {
-                    IsUpsert = true,
+                    SchedulerName = InstanceName,
+                    InstanceId = instanceId,
+                    LastCheckIn = checkInTime,
+                    CheckInInterval = interval,
                 }
             )
             .ConfigureAwait(false);
     }
 
-    public async Task DeleteScheduler(string id)
+    /// <summary>
+    /// Delete a scheduler-instance state record.
+    /// </summary>
+    /// <param name="instanceId"></param>
+    /// <returns></returns>
+    public async Task DeleteScheduler(string instanceId)
     {
-        var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) & //
-                     FilterBuilder.Eq(x => x.Name, id);
+        // DELETE FROM SCHEDULER_STATE WHERE SCHED_NAME = @schedulerName AND INSTANCE_NAME = @instanceName
+
+        var filter = FilterBuilder.Eq(x => x.SchedulerName, InstanceName) &
+                     FilterBuilder.Eq(x => x.InstanceId, instanceId);
 
         await Collection.DeleteOneAsync(filter).ConfigureAwait(false);
     }
 
-    public async Task UpdateState(string id, DateTime lastCheckIn)
+    public async Task<long> UpdateState(string instanceId, DateTimeOffset lastCheckIn)
     {
-        var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) & //
-                     FilterBuilder.Eq(x => x.Name, id);
+        // UPDATE SCHEDULER_STATE SET LAST_CHECKIN_TIME = @lastCheckinTime WHERE SCHED_NAME = @schedulerName AND INSTANCE_NAME = @instanceName
+
+        // schedName = args.InstanceName;
+        // AddCommandParameter(cmd, "schedulerName", args.InstanceName);
+        //AddCommandParameter(cmd, "instanceName", instanceName);
+
+        var filter = FilterBuilder.Eq(x => x.SchedulerName, InstanceName) &
+                     FilterBuilder.Eq(x => x.InstanceId, instanceId);
 
         var update = UpdateBuilder.Set(sch => sch.LastCheckIn, lastCheckIn);
 
-        await Collection.UpdateOneAsync(filter, update).ConfigureAwait(false);
+        var result = await Collection.UpdateOneAsync(filter, update).ConfigureAwait(false);
+        return result.ModifiedCount;
+    }
+
+    public async Task<List<Scheduler>> SelectSchedulerStateRecords(string? instanceId)
+    {
+        // SELECT * FROM SCHEDULER_STATE WHERE SCHED_NAME = @schedulerName AND INSTANCE_NAME = @instanceName
+        // SELECT * FROM SCHEDULER_STATE WHERE SCHED_NAME = @schedulerName
+
+        var filter = FilterBuilder.Eq(x => x.SchedulerName, InstanceName);
+
+        if (instanceId != null)
+        {
+            filter &= FilterBuilder.Eq(x => x.InstanceId, instanceId);
+        }
+
+        return await Collection.Find(filter).ToListAsync();
     }
 }
