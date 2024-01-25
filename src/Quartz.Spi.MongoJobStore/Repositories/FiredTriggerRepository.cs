@@ -136,6 +136,8 @@ internal class FiredTriggerRepository : BaseRepository<FiredTrigger>
 
     public async Task DeleteFiredTrigger(string firedInstanceId)
     {
+        // DELETE FROM FIRED_TRIGGERS WHERE SCHED_NAME = @schedulerName AND ENTRY_ID = @triggerEntryId
+
         var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) &
                      FilterBuilder.Eq(x => x.FiredInstanceId, firedInstanceId);
 

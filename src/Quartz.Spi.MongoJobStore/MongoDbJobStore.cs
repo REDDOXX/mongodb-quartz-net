@@ -17,6 +17,7 @@ using Quartz.Spi.MongoJobStore.Models;
 using Quartz.Spi.MongoJobStore.Models.Id;
 using Quartz.Spi.MongoJobStore.Repositories;
 using Quartz.Spi.MongoJobStore.Util;
+using Quartz.Util;
 
 using Calendar = Quartz.Spi.MongoJobStore.Models.Calendar;
 
@@ -959,6 +960,7 @@ public class MongoDbJobStore : IJobStore
         }
     }
 
+    // Checked
     public async Task<IReadOnlyCollection<IOperableTrigger>> AcquireNextTriggers(
         DateTimeOffset noLaterThan,
         int maxCount,
@@ -979,6 +981,7 @@ public class MongoDbJobStore : IJobStore
         }
     }
 
+    // Checked
     public async Task ReleaseAcquiredTrigger(IOperableTrigger trigger, CancellationToken token = default)
     {
         try
@@ -1044,6 +1047,7 @@ public class MongoDbJobStore : IJobStore
         }
     }
 
+    // Checked
     public async Task TriggeredJobComplete(
         IOperableTrigger trigger,
         IJobDetail jobDetail,
@@ -1689,15 +1693,20 @@ public class MongoDbJobStore : IJobStore
         do
         {
             currentLoopCount++;
-            var keys = await _triggerRepository.GetTriggersToAcquire(noLaterThan + timeWindow, MisfireTime, maxCount)
+
+            var triggerKeys = await _triggerRepository
+                .GetTriggersToAcquire(noLaterThan + timeWindow, MisfireTime, maxCount)
                 .ConfigureAwait(false);
 
-            if (keys.Count == 0)
+            if (triggerKeys.Count == 0)
             {
                 return acquiredTriggers;
             }
 
-            foreach (var triggerKey in keys)
+
+            var batchEnd = noLaterThan;
+
+            foreach (var triggerKey in triggerKeys)
             {
                 // If our trigger is no longer available, try a new one.
                 var nextTrigger = await _triggerRepository.GetTrigger(triggerKey).ConfigureAwait(false);
@@ -1706,7 +1715,9 @@ public class MongoDbJobStore : IJobStore
                     continue; // next trigger
                 }
 
+                // TODO: Create new lookup request?
                 var jobKey = nextTrigger.JobKey;
+
                 JobDetail? jobDetail;
                 try
                 {
@@ -1726,13 +1737,38 @@ public class MongoDbJobStore : IJobStore
                         continue;
                     }
                 }
+                // ^^
 
+                var nextFireTimeUtc = nextTrigger.NextFireTime;
+
+                // A trigger should not return NULL on nextFireTime when fetched from DB.
+                // But for whatever reason if we do have this (BAD trigger implementation or
+                // data?), we then should log a warning and continue to next trigger.
+                // User would need to manually fix these triggers from DB as they will not
+                // able to be clean up by Quartz since we are not returning it to be processed.
+                if (nextFireTimeUtc == null)
+                {
+                    _logger.LogWarning(
+                        "Trigger {Key} returned null on nextFireTime and yet still exists in DB!",
+                        nextTrigger.GetTriggerKey()
+                    );
+                    continue;
+                }
+
+                if (nextFireTimeUtc > batchEnd)
+                {
+                    break;
+                }
+
+                // We now have a acquired trigger, let's add to return list.
+                // If our trigger was no longer in the expected state, try a new one.
                 var result = await _triggerRepository.UpdateTriggerState(
                         triggerKey,
                         Models.TriggerState.Acquired,
                         Models.TriggerState.Waiting
                     )
                     .ConfigureAwait(false);
+
                 if (result <= 0)
                 {
                     continue;
@@ -1741,21 +1777,36 @@ public class MongoDbJobStore : IJobStore
                 var operableTrigger = (IOperableTrigger)nextTrigger.GetTrigger();
                 operableTrigger.FireInstanceId = GetFiredTriggerRecordId();
 
-                var firedTrigger = new FiredTrigger(operableTrigger.FireInstanceId, nextTrigger, null)
+                await _firedTriggerRepository.AddFiredTrigger(
+                        new FiredTrigger(operableTrigger.FireInstanceId, nextTrigger, null)
+                        {
+                            State = Models.TriggerState.Acquired,
+                            InstanceId = InstanceId,
+                        }
+                    )
+                    .ConfigureAwait(false);
+
+                if (acquiredTriggers.Count == 0)
                 {
-                    State = Models.TriggerState.Acquired,
-                    InstanceId = InstanceId,
-                };
-                await _firedTriggerRepository.AddFiredTrigger(firedTrigger).ConfigureAwait(false);
+                    var now = SystemTime.UtcNow();
+                    var nextFireTime = nextFireTimeUtc.Value;
+                    var max = now > nextFireTime ? now : nextFireTime;
+
+                    batchEnd = max + timeWindow;
+                }
 
                 acquiredTriggers.Add(operableTrigger);
             }
+
+            // if we didn't end up with any trigger to fire from that first
+            // batch, try again for another batch. We allow with a max retry count.
 
             if (acquiredTriggers.Count == 0 && currentLoopCount < maxDoLoopRetry)
             {
                 continue;
             }
 
+            // We are done with the while loop.
             break;
         } while (true);
 
@@ -1768,6 +1819,7 @@ public class MongoDbJobStore : IJobStore
         return InstanceId + _fireTriggerRecordCounter;
     }
 
+    // Checked
     private async Task TriggeredJobCompleteInternal(
         IOperableTrigger trigger,
         IJobDetail jobDetail,
@@ -1782,6 +1834,8 @@ public class MongoDbJobStore : IJobStore
                 {
                     if (!trigger.GetNextFireTimeUtc().HasValue)
                     {
+                        // double check for possible reschedule within job
+                        // execution, which would cancel the need to delete...
                         var trig = await _triggerRepository.GetTrigger(trigger.Key).ConfigureAwait(false);
                         if (trig != null && !trig.NextFireTime.HasValue)
                         {

@@ -136,6 +136,7 @@ internal class JobDetailRepository : BaseRepository<JobDetail>
 
     public async Task UpdateJobData(JobKey jobKey, JobDataMap jobDataMap)
     {
+        // UPDATE JOB_DETAILS SET JOB_DATA = @jobDataMap WHERE SCHED_NAME = @schedulerName AND JOB_NAME = @jobName AND JOB_GROUP = @jobGroup
         var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) &
                      FilterBuilder.Eq(x => x.Name, jobKey.Name) &
                      FilterBuilder.Eq(x => x.Group, jobKey.Group);

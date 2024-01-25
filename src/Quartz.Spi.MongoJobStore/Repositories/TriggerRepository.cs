@@ -226,6 +226,14 @@ internal class TriggerRepository : BaseRepository<Trigger>
             .ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Select the next trigger which will fire to fire between the two given timestamps 
+    /// in ascending order of fire time, and then descending by priority.
+    /// </summary>
+    /// <param name="noLaterThan"></param>
+    /// <param name="noEarlierThan"></param>
+    /// <param name="maxCount"></param>
+    /// <returns></returns>
     public async Task<List<TriggerKey>> GetTriggersToAcquire(
         DateTimeOffset noLaterThan,
         DateTimeOffset noEarlierThan,
@@ -234,8 +242,20 @@ internal class TriggerRepository : BaseRepository<Trigger>
     {
         if (maxCount < 1)
         {
+            // we want at least one trigger back.
             maxCount = 1;
         }
+
+        //  SELECT
+        //      t.TRIGGER_NAME, t.TRIGGER_GROUP, jd.JOB_CLASS_NAME
+        //  FROM
+        //      {0}TRIGGERS t
+        //  JOIN
+        //      {0}JOB_DETAILS jd ON (jd.SCHED_NAME = t.SCHED_NAME AND  jd.JOB_GROUP = t.JOB_GROUP AND jd.JOB_NAME = t.JOB_NAME)
+        //  WHERE
+        //      t.SCHED_NAME = @schedulerName AND TRIGGER_STATE = @state AND NEXT_FIRE_TIME <= @noLaterThan AND (MISFIRE_INSTR = -1 OR (MISFIRE_INSTR <> -1 AND NEXT_FIRE_TIME >= @noEarlierThan))
+        //  ORDER BY
+        //      NEXT_FIRE_TIME ASC, PRIORITY DESC
 
         var noLaterThanDateTime = noLaterThan.UtcDateTime;
         var noEarlierThanDateTime = noEarlierThan.UtcDateTime;
