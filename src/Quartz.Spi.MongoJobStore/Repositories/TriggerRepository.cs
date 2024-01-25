@@ -1,3 +1,6 @@
+using System.Text.RegularExpressions;
+using System.Xml.Linq;
+
 using MongoDB.Driver;
 
 using Quartz.Impl.Matchers;
@@ -181,10 +184,8 @@ internal class TriggerRepository : BaseRepository<Trigger>
         var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) &
                      FilterBuilder.Regex(x => x.Group, matcher.ToBsonRegularExpression());
 
-        return await Collection
-            //
-            .Find(filter)
-            .Project(trigger => trigger.GetTriggerKey())
+        return await Collection.Find(filter)
+            .Project(trigger => new TriggerKey(trigger.Name, trigger.Group))
             .ToListAsync()
             .ConfigureAwait(false);
     }

@@ -1,7 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
 
-using JetBrains.Annotations;
-
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 

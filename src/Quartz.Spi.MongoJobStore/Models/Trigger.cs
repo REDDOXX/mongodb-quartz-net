@@ -6,7 +6,6 @@ using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 
 using Quartz.Impl.Triggers;
-using Quartz.Spi.MongoJobStore.Models.Id;
 
 namespace Quartz.Spi.MongoJobStore.Models;
 
@@ -34,6 +33,9 @@ internal enum TriggerState
 )]
 internal abstract class Trigger
 {
+    [BsonId]
+    public ObjectId Id { get; set; }
+
     /// <summary>
     /// sched_name
     /// </summary>

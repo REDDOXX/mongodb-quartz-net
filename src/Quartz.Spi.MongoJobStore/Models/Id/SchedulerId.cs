@@ -1,5 +1,3 @@
-using JetBrains.Annotations;
-
 namespace Quartz.Spi.MongoJobStore.Models.Id;
 
 internal class SchedulerId

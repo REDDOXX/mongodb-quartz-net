@@ -13,6 +13,9 @@ namespace Quartz.Spi.MongoJobStore.Models;
 [UsedImplicitly(ImplicitUseTargetFlags.Members)]
 internal class FiredTrigger
 {
+    [BsonId]
+    public ObjectId Id { get; set; }
+
     /// <summary>
     /// </summary>
     /// <remarks>Also called sched_name</remarks>

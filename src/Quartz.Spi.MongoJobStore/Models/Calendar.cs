@@ -2,6 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 
 using JetBrains.Annotations;
 
+using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 
 namespace Quartz.Spi.MongoJobStore.Models;
@@ -9,6 +10,9 @@ namespace Quartz.Spi.MongoJobStore.Models;
 [UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
 internal class Calendar
 {
+    [BsonId]
+    public ObjectId Id { get; set; }
+
     /// <summary>
     /// 
     /// </summary>

@@ -1,7 +1,13 @@
+using MongoDB.Bson;
+using MongoDB.Bson.Serialization.Attributes;
+
 namespace Quartz.Spi.MongoJobStore.Models;
 
 internal class PausedTriggerGroup
 {
+    [BsonId]
+    public ObjectId Id { get; set; }
+
     /// <summary>
     /// 
     /// </summary>

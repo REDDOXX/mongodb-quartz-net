@@ -2,9 +2,8 @@ using System.Diagnostics.CodeAnalysis;
 
 using JetBrains.Annotations;
 
+using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
-
-using Quartz.Spi.MongoJobStore.Models.Id;
 
 namespace Quartz.Spi.MongoJobStore.Models;
 
@@ -17,6 +16,9 @@ namespace Quartz.Spi.MongoJobStore.Models;
 [UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
 internal class JobDetail
 {
+    [BsonId]
+    public ObjectId Id { get; set; }
+
     /// <summary>
     /// schedulerName
     /// </summary>
