@@ -249,9 +249,9 @@ internal class TriggerRepository : BaseRepository<Trigger>
         //  SELECT
         //      t.TRIGGER_NAME, t.TRIGGER_GROUP, jd.JOB_CLASS_NAME
         //  FROM
-        //      {0}TRIGGERS t
+        //      TRIGGERS t
         //  JOIN
-        //      {0}JOB_DETAILS jd ON (jd.SCHED_NAME = t.SCHED_NAME AND  jd.JOB_GROUP = t.JOB_GROUP AND jd.JOB_NAME = t.JOB_NAME)
+        //      JOB_DETAILS jd ON (jd.SCHED_NAME = t.SCHED_NAME AND jd.JOB_GROUP = t.JOB_GROUP AND jd.JOB_NAME = t.JOB_NAME)
         //  WHERE
         //      t.SCHED_NAME = @schedulerName AND TRIGGER_STATE = @state AND NEXT_FIRE_TIME <= @noLaterThan AND (MISFIRE_INSTR = -1 OR (MISFIRE_INSTR <> -1 AND NEXT_FIRE_TIME >= @noEarlierThan))
         //  ORDER BY
@@ -449,6 +449,11 @@ internal class TriggerRepository : BaseRepository<Trigger>
     /// <returns></returns>
     public bool HasMisfiredTriggers(DateTime nextFireTime, int maxResults, out List<TriggerKey> results)
     {
+        // SELECT TRIGGER_NAME, TRIGGER_GROUP
+        // FROM TRIGGERS
+        // WHERE SCHED_NAME = @schedulerName AND MISFIRE_INSTR <> -1 AND NEXT_FIRE_TIME < @nextFireTime AND TRIGGER_STATE = @state1
+        // ORDER BY NEXT_FIRE_TIME ASC, PRIORITY DESC
+
         results = [];
 
         var filter = FilterBuilder.Where(
@@ -463,10 +468,10 @@ internal class TriggerRepository : BaseRepository<Trigger>
             SortBuilder.Descending(trigger => trigger.Priority)
         );
 
-        // Perform query
         var cursor = Collection
             //
             .Find(filter)
+            .Limit(maxResults)
             .Project(trigger => trigger.GetTriggerKey())
             .Sort(sort)
             .ToCursor();

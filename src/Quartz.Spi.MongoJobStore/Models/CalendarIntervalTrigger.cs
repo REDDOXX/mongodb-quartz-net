@@ -43,7 +43,7 @@ internal class CalendarIntervalTrigger : Trigger
         SkipDayIfHourDoesNotExist = trigger.SkipDayIfHourDoesNotExist;
     }
 
-    public override ITrigger GetTrigger()
+    public override IOperableTrigger GetTrigger()
     {
         var trigger = new CalendarIntervalTriggerImpl
         {

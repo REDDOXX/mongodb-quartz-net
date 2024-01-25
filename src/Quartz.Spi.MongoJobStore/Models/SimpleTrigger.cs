@@ -29,7 +29,7 @@ internal class SimpleTrigger : Trigger
         TimesTriggered = trigger.TimesTriggered;
     }
 
-    public override ITrigger GetTrigger()
+    public override IOperableTrigger GetTrigger()
     {
         var trigger = new SimpleTriggerImpl
         {

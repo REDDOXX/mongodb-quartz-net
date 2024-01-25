@@ -1,7 +1,6 @@
 using MongoDB.Driver;
 
 using Quartz.Spi.MongoJobStore.Models;
-using Quartz.Spi.MongoJobStore.Models.Id;
 
 namespace Quartz.Spi.MongoJobStore.Repositories;
 
@@ -62,6 +61,17 @@ internal class FiredTriggerRepository : BaseRepository<FiredTrigger>
         // create index idx_qrtz_ft_job_group on qrtz_fired_triggers(job_group);
         await Collection.Indexes.CreateOneAsync(
             new CreateIndexModel<FiredTrigger>(IndexBuilder.Ascending(x => x.JobKey.Group))
+        );
+
+        // create index idx_qrtz_ft_job_req_recovery on qrtz_fired_triggers(requests_recovery);
+        await Collection.Indexes.CreateOneAsync(
+            new CreateIndexModel<FiredTrigger>(
+                IndexBuilder.Ascending(x => x.RequestsRecovery),
+                new CreateIndexOptions<FiredTrigger>
+                {
+                    PartialFilterExpression = FilterBuilder.Eq(x => x.RequestsRecovery, true),
+                }
+            )
         );
     }
 

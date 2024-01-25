@@ -39,7 +39,7 @@ internal class JobDetail
     /// <summary>
     /// job_class_name
     /// </summary>
-    public Type JobType { get; set; } // TODO: AssemblyQualifiedNameWithoutVersion
+    public Type JobType { get; set; }
 
     /// <summary>
     /// is_durable

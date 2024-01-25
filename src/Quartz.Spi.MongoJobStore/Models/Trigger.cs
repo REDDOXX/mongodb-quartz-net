@@ -143,7 +143,7 @@ internal abstract class Trigger
         JobDataMap = trigger.JobDataMap;
     }
 
-    public abstract ITrigger GetTrigger();
+    public abstract IOperableTrigger GetTrigger();
 
     protected void FillTrigger(AbstractTrigger trigger)
     {
