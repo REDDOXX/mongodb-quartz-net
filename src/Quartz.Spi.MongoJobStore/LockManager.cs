@@ -15,9 +15,10 @@ namespace Quartz.Spi.MongoJobStore;
 /// </summary>
 internal class LockManager : IDisposable
 {
-    private class LockInstance : IAsyncDisposable
+    private class LockInstance : IDisposable, IAsyncDisposable
     {
         private readonly LockManager _lockManager;
+
 
         private bool _disposed;
 
@@ -33,6 +34,21 @@ internal class LockManager : IDisposable
             InstanceId = instanceId;
         }
 
+
+        public void Dispose()
+        {
+            if (_disposed)
+            {
+                throw new ObjectDisposedException(
+                    nameof(LockInstance),
+                    $"This lock {LockType} for {InstanceId} has already been disposed"
+                );
+            }
+
+            _lockManager.ReleaseLock(this).GetAwaiter().GetResult();
+
+            _disposed = true;
+        }
 
         public async ValueTask DisposeAsync()
         {
@@ -76,7 +92,7 @@ internal class LockManager : IDisposable
         var locks = _pendingLocks.ToArray();
         foreach (var keyValuePair in locks)
         {
-            keyValuePair.Value.DisposeAsync().GetAwaiter().GetResult();
+            keyValuePair.Value.Dispose();
         }
     }
 

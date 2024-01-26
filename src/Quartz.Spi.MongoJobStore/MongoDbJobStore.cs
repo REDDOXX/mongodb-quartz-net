@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Globalization;
 
 using JetBrains.Annotations;
@@ -62,8 +61,8 @@ public class MongoDbJobStore : IJobStore
     private bool _schedulerRunning;
 
 
-    public string ConnectionString { get; set; }
-    public string CollectionPrefix { get; set; }
+    public string? ConnectionString { get; set; }
+    public string? CollectionPrefix { get; set; }
 
     /// <summary>
     ///     Get or set the maximum number of misfired triggers that the misfire handling
@@ -247,7 +246,6 @@ public class MongoDbJobStore : IJobStore
     public async Task SchedulerStarted(CancellationToken cancellationToken = default)
     {
         _logger.LogTrace("Scheduler {SchedulerId} started", _schedulerId);
-        _logger.LogTrace("Scheduler {InstanceName} / {InstanceId} started", InstanceName, InstanceId);
 
         if (Clustered)
         {
@@ -513,7 +511,7 @@ public class MongoDbJobStore : IJobStore
     {
         var result = await _triggerRepository.GetTrigger(triggerKey).ConfigureAwait(false);
 
-        return result?.GetTrigger() as IOperableTrigger;
+        return result?.GetTrigger();
     }
 
     // Checked
@@ -1191,7 +1189,10 @@ public class MongoDbJobStore : IJobStore
 
 
         var trigger = await _triggerRepository.GetTrigger(triggerKey).ConfigureAwait(false);
-
+        if (trigger == null)
+        {
+            return false;
+        }
 
         var result = await _jobDetailRepository.GetJob(trigger.JobKey).ConfigureAwait(false);
         var job = result?.GetJobDetail();
@@ -1594,7 +1595,11 @@ public class MongoDbJobStore : IJobStore
         bool forceState
     )
     {
-        var trigger = await _triggerRepository.GetTrigger(triggerKey).ConfigureAwait(false)!;
+        var trigger = await _triggerRepository.GetTrigger(triggerKey).ConfigureAwait(false);
+        if (trigger == null)
+        {
+            throw new JobPersistenceException($"No trigger found with id {triggerKey}");
+        }
 
         var misfireTime = SystemTime.UtcNow();
         if (MisfireThreshold > TimeSpan.Zero)

@@ -24,7 +24,7 @@ internal class Calendar
     public required string CalendarName { get; set; }
 
 
-    public byte[] Content { get; init; } // BSON Document
+    public required byte[] Content { get; init; } // BSON Document
 
 
     public Calendar()

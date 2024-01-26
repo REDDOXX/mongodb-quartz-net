@@ -11,10 +11,7 @@ internal class MisfireHandler
 {
     private readonly ILogger _logger = LogProvider.CreateLogger<MisfireHandler>();
 
-    private readonly Thread _thread;
-
     private readonly MongoDbJobStore _jobStore;
-    private bool _shutdown;
     private int _numFails;
 
     private readonly CancellationTokenSource _cancellationTokenSource = new();

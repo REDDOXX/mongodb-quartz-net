@@ -23,6 +23,12 @@ internal enum TriggerState
     Deleted,
 }
 
+/// <summary>
+/// 
+/// </summary>
+/// <remarks>
+/// trigger_type has been removed as we're using the mongodb inheritance feature.
+/// </remarks>
 [UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
 [BsonDiscriminator(RootClass = true)]
 [BsonKnownTypes(
@@ -61,12 +67,14 @@ internal abstract class Trigger
     /// <summary>
     /// next_fire_time
     /// </summary>
+    [BsonIgnoreIfNull]
     [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
     public DateTime? NextFireTime { get; set; }
 
     /// <summary>
     /// prev_fire_time
     /// </summary>
+    [BsonIgnoreIfNull]
     [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
     public DateTime? PreviousFireTime { get; set; }
 
@@ -85,6 +93,7 @@ internal abstract class Trigger
     /// <summary>
     /// end_time
     /// </summary>
+    [BsonIgnoreIfNull]
     [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
     public DateTime? EndTime { get; set; }
 
@@ -104,10 +113,6 @@ internal abstract class Trigger
     /// </summary>
     public int Priority { get; set; }
 
-    /// <summary>
-    /// trigger_type
-    /// </summary>
-    public string Type { get; set; }
 
     /// <summary>
     /// job_data

@@ -19,15 +19,16 @@ internal class DailyTimeIntervalTrigger : Trigger
 
     public int RepeatInterval { get; set; }
 
-    public TimeOfDay StartTimeOfDay { get; set; }
+    public required TimeOfDay StartTimeOfDay { get; set; }
 
-    public TimeOfDay EndTimeOfDay { get; set; }
+    [BsonIgnoreIfNull]
+    public TimeOfDay? EndTimeOfDay { get; set; }
 
-    public HashSet<DayOfWeek> DaysOfWeek { get; set; }
+    public HashSet<DayOfWeek> DaysOfWeek { get; set; } = [];
 
     public int TimesTriggered { get; set; }
 
-    public string TimeZone { get; set; }
+    public required string TimeZone { get; set; }
 
 
     public DailyTimeIntervalTrigger()
@@ -55,8 +56,9 @@ internal class DailyTimeIntervalTrigger : Trigger
             RepeatCount = RepeatCount,
             RepeatIntervalUnit = RepeatIntervalUnit,
             RepeatInterval = RepeatInterval,
+            // TODO: StartTimeOfDay = StartTimeOfDay ?? new TimeOfDay(0, 0, 0),
             StartTimeOfDay = StartTimeOfDay,
-            EndTimeOfDay = EndTimeOfDay,
+            EndTimeOfDay = EndTimeOfDay ?? new TimeOfDay(23, 59, 59),
             DaysOfWeek = new HashSet<DayOfWeek>(DaysOfWeek),
             TimesTriggered = TimesTriggered,
             TimeZone = TimeZoneInfo.FindSystemTimeZoneById(TimeZone),

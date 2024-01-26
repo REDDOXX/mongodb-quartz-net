@@ -187,9 +187,33 @@ internal class FiredTriggerRepository : BaseRepository<FiredTrigger>
 
     public async Task UpdateFiredTrigger(FiredTrigger firedTrigger)
     {
+        // UPDATE FIRED_TRIGGERS
+        // SET
+        //  INSTANCE_NAME = @instanceName,
+        //  FIRED_TIME = @firedTime,
+        //  SCHED_TIME = @scheduledTime,
+        //  STATE = @entryState,
+        //  JOB_NAME = @jobName,
+        //  JOB_GROUP = @jobGroup,
+        //  IS_NONCONCURRENT = @isNonConcurrent,
+        //  REQUESTS_RECOVERY = @requestsRecover
+        // WHERE
+        //  SCHED_NAME = @schedulerName AND ENTRY_ID = @entryId";
+
+
         var filter = FilterBuilder.Eq(x => x.InstanceName, firedTrigger.InstanceName) &
                      FilterBuilder.Eq(x => x.FiredInstanceId, firedTrigger.FiredInstanceId);
 
-        await Collection.ReplaceOneAsync(filter, firedTrigger).ConfigureAwait(false);
+        var update = UpdateBuilder
+            //
+            .Set(x => x.InstanceId, firedTrigger.InstanceId)
+            .Set(x => x.Fired, firedTrigger.Fired)
+            .Set(x => x.Scheduled, firedTrigger.Scheduled)
+            .Set(x => x.State, firedTrigger.State)
+            .Set(x => x.JobKey, firedTrigger.JobKey)
+            .Set(x => x.ConcurrentExecutionDisallowed, firedTrigger.ConcurrentExecutionDisallowed)
+            .Set(x => x.RequestsRecovery, firedTrigger.RequestsRecovery);
+
+        await Collection.UpdateOneAsync(filter, update).ConfigureAwait(false);
     }
 }

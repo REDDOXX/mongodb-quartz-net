@@ -1,6 +1,3 @@
-using System.Text.RegularExpressions;
-using System.Xml.Linq;
-
 using MongoDB.Driver;
 
 using Quartz.Impl.Matchers;
@@ -196,7 +193,7 @@ internal class TriggerRepository : BaseRepository<Trigger>
                      FilterBuilder.Eq(x => x.State, state);
 
         return await Collection.Find(filter)
-            .Project(trigger => trigger.GetTriggerKey())
+            .Project(trigger => new TriggerKey(trigger.Name, trigger.Group))
             .ToListAsync()
             .ConfigureAwait(false);
     }
@@ -276,7 +273,7 @@ internal class TriggerRepository : BaseRepository<Trigger>
         return await Collection.Find(filter)
             .Sort(sort)
             .Limit(maxCount)
-            .Project(trigger => trigger.GetTriggerKey())
+            .Project(trigger => new TriggerKey(trigger.Name, trigger.Group))
             .ToListAsync()
             .ConfigureAwait(false);
     }
@@ -324,11 +321,44 @@ internal class TriggerRepository : BaseRepository<Trigger>
 
     public async Task UpdateTrigger(Trigger trigger)
     {
+        // UPDATE TRIGGERS
+        // SET
+        //   JOB_NAME = @triggerJobName, 
+        //   JOB_GROUP = @triggerJobGroup, 
+        //   DESCRIPTION = @triggerDescription, 
+        //   NEXT_FIRE_TIME = @triggerNextFireTime, 
+        //   PREV_FIRE_TIME = @triggerPreviousFireTime,
+        //   TRIGGER_STATE = @triggerState, 
+        //   TRIGGER_TYPE = @triggerType, 
+        //   START_TIME = @triggerStartTime, 
+        //   END_TIME = @triggerEndTime, 
+        //   CALENDAR_NAME = @triggerCalendarName, 
+        //   MISFIRE_INSTR = @triggerMisfireInstruction, 
+        //   PRIORITY = @triggerPriority,
+        //   JOB_DATA = @triggerJobJobDataMap
+        // WHERE
+        //  SCHED_NAME = @schedulerName AND TRIGGER_NAME = @triggerName AND TRIGGER_GROUP = @triggerGroup";
+
         var filter = FilterBuilder.Eq(x => x.InstanceName, trigger.InstanceName) &
                      FilterBuilder.Eq(x => x.Name, trigger.Name) &
                      FilterBuilder.Eq(x => x.Group, trigger.Group);
 
-        await Collection.ReplaceOneAsync(filter, trigger).ConfigureAwait(false);
+        var update = UpdateBuilder
+            // 
+            .Set(x => x.JobKey, trigger.JobKey)
+            .Set(x => x.Description, trigger.Description)
+            .Set(x => x.NextFireTime, trigger.NextFireTime)
+            .Set(x => x.PreviousFireTime, trigger.PreviousFireTime)
+            .Set(x => x.State, trigger.State)
+            //.Set(x => x.Type, trigger.Type)
+            .Set(x => x.StartTime, trigger.StartTime)
+            .Set(x => x.EndTime, trigger.EndTime)
+            .Set(x => x.CalendarName, trigger.CalendarName)
+            .Set(x => x.MisfireInstruction, trigger.MisfireInstruction)
+            .Set(x => x.Priority, trigger.Priority)
+            .Set(x => x.JobDataMap, trigger.JobDataMap);
+
+        await Collection.UpdateOneAsync(filter, update).ConfigureAwait(false);
     }
 
     public async Task<long> UpdateTriggerState(TriggerKey triggerKey, Models.TriggerState state)
@@ -457,12 +487,10 @@ internal class TriggerRepository : BaseRepository<Trigger>
 
         results = [];
 
-        var filter = FilterBuilder.Where(
-            x => x.InstanceName == InstanceName &&
-                 x.MisfireInstruction != MisfireInstruction.IgnoreMisfirePolicy &&
-                 x.NextFireTime < nextFireTime &&
-                 x.State == Models.TriggerState.Waiting
-        );
+        var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) &
+                     FilterBuilder.Ne(x => x.MisfireInstruction, MisfireInstruction.IgnoreMisfirePolicy) &
+                     FilterBuilder.Lt(x => x.NextFireTime, nextFireTime) &
+                     FilterBuilder.Eq(x => x.State, Models.TriggerState.Waiting);
 
         var sort = SortBuilder.Combine(
             SortBuilder.Ascending(trigger => trigger.NextFireTime),
@@ -473,7 +501,7 @@ internal class TriggerRepository : BaseRepository<Trigger>
             //
             .Find(filter)
             .Limit(maxResults)
-            .Project(trigger => trigger.GetTriggerKey())
+            .Project(trigger => new TriggerKey(trigger.Name, trigger.Group))
             .Sort(sort)
             .ToCursor();
 

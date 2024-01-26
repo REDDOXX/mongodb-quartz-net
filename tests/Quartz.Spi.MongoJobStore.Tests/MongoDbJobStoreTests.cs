@@ -128,7 +128,7 @@ public class MongoDbJobStoreTests : BaseStoreTests, IDisposable
         s.Equals(TriggerState.Normal).Should().BeTrue("State of trigger t2 expected to be NORMAL ");
 
         var pausedGroups = await _scheduler.GetPausedTriggerGroups();
-        (pausedGroups).Should().BeEmpty("Size of paused trigger groups list expected to be 0 ");
+        pausedGroups.Should().BeEmpty("Size of paused trigger groups list expected to be 0 ");
 
         await _scheduler.PauseTriggers(GroupMatcher<TriggerKey>.GroupEquals("g1"));
 
@@ -159,7 +159,7 @@ public class MongoDbJobStoreTests : BaseStoreTests, IDisposable
         s = await _scheduler.GetTriggerState(new TriggerKey("t4", "g1"));
         s.Equals(TriggerState.Normal).Should().BeTrue("State of trigger t4 expected to be NORMAL ");
         pausedGroups = await _scheduler.GetPausedTriggerGroups();
-        (pausedGroups).Should().BeEmpty("Size of paused trigger groups list expected to be 0 ");
+        pausedGroups.Should().BeEmpty("Size of paused trigger groups list expected to be 0 ");
     }
 
     [Fact]
@@ -188,7 +188,7 @@ public class MongoDbJobStoreTests : BaseStoreTests, IDisposable
 
         jobKeys.Count.Should().Be(1, "Number of jobs expected in default group was 1 ");
         // job should have been left in place, because it is non-durable
-        (triggerKeys).Should().BeEmpty("Number of triggers expected in default group was 0 ");
+        triggerKeys.Should().BeEmpty("Number of triggers expected in default group was 0 ");
     }
 
     [Fact]
@@ -333,8 +333,8 @@ public class MongoDbJobStoreTests : BaseStoreTests, IDisposable
 
         var triggersOfJob = await _scheduler.GetTriggersOfJob(job.Key);
         triggersOfJob.Count.Should().Be(2);
-        (triggersOfJob.Contains(trigger1)).Should().BeTrue();
-        (triggersOfJob.Contains(trigger2)).Should().BeTrue();
+        triggersOfJob.Contains(trigger1).Should().BeTrue();
+        triggersOfJob.Contains(trigger2).Should().BeTrue();
 
         await _scheduler.Shutdown(false);
     }

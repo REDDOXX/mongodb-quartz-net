@@ -90,10 +90,16 @@ internal class CalendarRepository : BaseRepository<Calendar>
 
     public async Task<long> UpdateCalendar(Calendar calendar)
     {
+        // UPDATE CALENDARS
+        // SET CALENDAR = @calendar
+        // WHERE SCHED_NAME = @schedulerName AND CALENDAR_NAME = @calendarName
+
         var filter = FilterBuilder.Eq(x => x.InstanceName, calendar.InstanceName) &
                      FilterBuilder.Eq(x => x.CalendarName, calendar.CalendarName);
 
-        var result = await Collection.ReplaceOneAsync(filter, calendar).ConfigureAwait(false);
+        var update = UpdateBuilder.Set(x => x.Content, calendar.Content);
+
+        var result = await Collection.UpdateOneAsync(filter, update).ConfigureAwait(false);
         return result.MatchedCount;
     }
 
