@@ -3,10 +3,9 @@ using MongoDB.Bson.Serialization;
 using MongoDB.Bson.Serialization.Serializers;
 
 using Quartz.Spi.MongoJobStore.Models;
-using Quartz.Spi.MongoJobStore.Serializers;
 using Quartz.Util;
 
-namespace Quartz.Spi.MongoJobStore.Repositories;
+namespace Quartz.Spi.MongoJobStore.Serializers;
 
 internal static class JobStoreClassMap
 {
@@ -57,9 +56,11 @@ internal static class JobStoreClassMap
             map =>
             {
                 map.AutoMap();
+
                 map.MapProperty(day => day.Hour);
                 map.MapProperty(day => day.Minute);
                 map.MapProperty(day => day.Second);
+
                 map.MapCreator(day => new TimeOfDay(day.Hour, day.Minute, day.Second));
                 map.MapCreator(day => new TimeOfDay(day.Hour, day.Minute));
             }

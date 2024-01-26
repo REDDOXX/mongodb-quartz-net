@@ -56,8 +56,7 @@ internal class JobDetail
     /// <summary>
     /// job_data
     /// </summary>
-    [BsonIgnoreIfNull] // TODO: Serialize to dictionary? 
-    public JobDataMap? JobDataMap { get; set; }
+    public JobDataMap JobDataMap { get; set; }
 
     /// <summary>
     /// IS_UPDATE_DATA (legacy: jobStateful)

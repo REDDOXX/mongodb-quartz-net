@@ -15,6 +15,7 @@ using Quartz.Spi.MongoJobStore.Database;
 using Quartz.Spi.MongoJobStore.Models;
 using Quartz.Spi.MongoJobStore.Models.Id;
 using Quartz.Spi.MongoJobStore.Repositories;
+using Quartz.Spi.MongoJobStore.Serializers;
 using Quartz.Spi.MongoJobStore.Util;
 using Quartz.Util;
 
@@ -1334,7 +1335,7 @@ public class MongoDbJobStore : IJobStore
         var existingCal = await CalendarExists(calName, token).ConfigureAwait(false);
         if (existingCal && !replaceExisting)
         {
-            throw new ObjectAlreadyExistsException($"Calendar with name '" + calName + "' already exists.");
+            throw new ObjectAlreadyExistsException($"Calendar with name '{calName}' already exists.");
         }
 
         var persistentCalendar = new Calendar(calName, calendar, InstanceName);

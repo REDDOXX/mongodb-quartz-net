@@ -1,34 +1,26 @@
-using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
+using MongoDB.Bson.Serialization.Options;
 using MongoDB.Bson.Serialization.Serializers;
-
-using Quartz.Simpl;
 
 namespace Quartz.Spi.MongoJobStore.Serializers;
 
 internal class JobDataMapSerializer : SerializerBase<JobDataMap>
 {
+    private readonly DictionaryInterfaceImplementerSerializer<Dictionary<string, object>> _serializer =
+        new(DictionaryRepresentation.ArrayOfDocuments);
+
+
     public override void Serialize(BsonSerializationContext context, BsonSerializationArgs args, JobDataMap value)
     {
-        if (value == null)
-        {
-            context.Writer.WriteNull();
-            return;
-        }
+        var map = value.WrappedMap as Dictionary<string, object> ?? throw new InvalidOperationException();
 
-        var base64 = Convert.ToBase64String(MongoDbJobStore.ObjectSerializer.Serialize(value));
-        context.Writer.WriteString(base64);
+        _serializer.Serialize(context, args, map);
     }
 
     public override JobDataMap Deserialize(BsonDeserializationContext context, BsonDeserializationArgs args)
     {
-        if (context.Reader.CurrentBsonType == BsonType.Null)
-        {
-            context.Reader.ReadNull();
-            return null;
-        }
+        IDictionary<string, object> map = _serializer.Deserialize(context, args);
 
-        var bytes = Convert.FromBase64String(context.Reader.ReadString());
-        return MongoDbJobStore.ObjectSerializer.DeSerialize<JobDataMap>(bytes);
+        return new JobDataMap(map);
     }
 }

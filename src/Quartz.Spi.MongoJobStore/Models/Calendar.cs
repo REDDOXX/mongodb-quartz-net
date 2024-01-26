@@ -23,8 +23,10 @@ internal class Calendar
     [BsonRequired]
     public required string CalendarName { get; set; }
 
+    public required byte[] Content { get; init; }
 
-    public required byte[] Content { get; init; } // BSON Document
+
+    public ICalendar CalContent { get; set; }
 
 
     public Calendar()
@@ -42,6 +44,12 @@ internal class Calendar
 
     public ICalendar GetCalendar()
     {
-        return MongoDbJobStore.ObjectSerializer.DeSerialize<ICalendar>(Content);
+        var result = MongoDbJobStore.ObjectSerializer.DeSerialize<ICalendar>(Content);
+        if (result == null)
+        {
+            throw new JobPersistenceException("Failed to deserialize calendar contents");
+        }
+
+        return result;
     }
 }

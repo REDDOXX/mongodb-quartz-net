@@ -449,7 +449,7 @@ public class MongoDbJobStoreTests : BaseStoreTests, IDisposable
     [Fact]
     public async Task SmokeTest()
     {
-        await new SmokeTestPerformer().Test(_scheduler, true, true);
+        await SmokeTestPerformer.Test(_scheduler, true, true);
     }
 
     private async Task CreateJobsAndTriggers()
@@ -486,23 +486,5 @@ public class MongoDbJobStoreTests : BaseStoreTests, IDisposable
             .Build();
 
         await _scheduler.ScheduleJob(job, trigger);
-    }
-
-    [Fact]
-    public async Task HelloJobTest()
-    {
-        // define the job and tie it to our HelloJob class
-        var job = JobBuilder.Create<HelloJob>().WithIdentity("myJob", "group1").Build();
-
-        // Trigger the job to run now, and then every 40 seconds
-        var trigger = TriggerBuilder.Create()
-            .WithIdentity("myTrigger", "group1")
-            .StartNow()
-            .WithSimpleSchedule(x => x.WithIntervalInSeconds(10).RepeatForever())
-            .Build();
-
-        await _scheduler.ScheduleJob(job, trigger);
-
-        Debugger.Break();
     }
 }

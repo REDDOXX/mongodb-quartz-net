@@ -1,9 +1,6 @@
-using System.Collections.Specialized;
-
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
-using Quartz.Impl;
 using Quartz.Spi.MongoJobStore.Database;
 using Quartz.Spi.MongoJobStore.Extensions;
 using Quartz.Spi.MongoJobStore.Tests.Persistence;
