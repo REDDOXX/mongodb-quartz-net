@@ -41,7 +41,7 @@ namespace Quartz.Spi.MongoJobStore.Util;
 /// <author>Marko Lahma .NET</author>
 public static class LogicalThreadContext
 {
-    private static readonly ConcurrentDictionary<string, AsyncLocal<object>> State = new();
+    private static readonly ConcurrentDictionary<string, AsyncLocal<object>> State = new(StringComparer.Ordinal);
 
 
     /// <summary>

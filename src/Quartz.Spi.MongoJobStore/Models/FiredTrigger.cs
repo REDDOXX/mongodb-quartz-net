@@ -30,7 +30,7 @@ internal class FiredTrigger
     /// <summary>
     /// trigger_name, trigger_group
     /// </summary>
-    public TriggerKey TriggerKey { get; set; }
+    public required TriggerKey TriggerKey { get; set; }
 
     /// <summary>
     /// job_name, job_group
@@ -40,7 +40,7 @@ internal class FiredTrigger
     /// <summary>
     /// instance_name
     /// </summary>
-    public string InstanceId { get; set; }
+    public required string InstanceId { get; set; }
 
     /// <summary>
     /// fired_time
@@ -63,7 +63,7 @@ internal class FiredTrigger
     /// state
     /// </summary>
     [BsonRepresentation(BsonType.String)]
-    public TriggerState State { get; set; }
+    public required TriggerState State { get; set; }
 
     /// <summary>
     /// is_nonconcurrent

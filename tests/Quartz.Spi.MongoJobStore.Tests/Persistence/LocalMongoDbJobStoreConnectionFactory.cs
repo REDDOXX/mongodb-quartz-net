@@ -6,7 +6,7 @@ namespace Quartz.Spi.MongoJobStore.Tests.Persistence;
 
 internal class LocalMongoDbJobStoreConnectionFactory : IMongoDbJobStoreConnectionFactory
 {
-    private const string LocalConnectionString = "mongodb://localhost/quartz";
+    private const string LocalConnectionString = "mongodb://localhost/quartz?minPoolSize=16&maxConnecting=32";
 
     private readonly IMongoDatabase _database;
 

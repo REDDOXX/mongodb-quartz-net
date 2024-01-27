@@ -56,7 +56,6 @@ internal class DailyTimeIntervalTrigger : Trigger
             RepeatCount = RepeatCount,
             RepeatIntervalUnit = RepeatIntervalUnit,
             RepeatInterval = RepeatInterval,
-            // TODO: StartTimeOfDay = StartTimeOfDay ?? new TimeOfDay(0, 0, 0),
             StartTimeOfDay = StartTimeOfDay,
             EndTimeOfDay = EndTimeOfDay ?? new TimeOfDay(23, 59, 59),
             DaysOfWeek = new HashSet<DayOfWeek>(DaysOfWeek),

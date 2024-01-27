@@ -1,5 +1,3 @@
-using System.Xml.Linq;
-
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -17,20 +15,13 @@ public class DependencyInjectionTest
     public async Task SetupDependencyInjection()
     {
         var services = new ServiceCollection();
-        services.AddLogging(
-            builder =>
-            {
-                //
-                builder.AddDebug();
-            }
-        );
+        services.AddLogging(builder => { builder.AddDebug(); });
 
         services.AddSingleton<IMongoDbJobStoreConnectionFactory, LocalMongoDbJobStoreConnectionFactory>();
         services.AddQuartz(
             q =>
             {
-                q.SchedulerName = "<InstanceName>";
-
+                q.SchedulerName = Guid.NewGuid().ToString("N");
                 q.InterruptJobsOnShutdown = true;
 
                 q.UsePersistentStore<MongoDbJobStore>(
@@ -43,7 +34,7 @@ public class DependencyInjectionTest
                             c =>
                             {
                                 //
-                                c.CollectionPrefix = "HelloWorld";
+                                c.CollectionPrefix = Guid.NewGuid().ToString("N");
                             }
                         );
                     }
@@ -55,5 +46,7 @@ public class DependencyInjectionTest
 
         var schedulerFactor = sp.GetRequiredService<ISchedulerFactory>();
         var scheduler = await schedulerFactor.GetScheduler();
+
+        Assert.NotNull(scheduler);
     }
 }

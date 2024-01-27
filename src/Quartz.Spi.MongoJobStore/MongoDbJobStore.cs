@@ -319,14 +319,14 @@ public class MongoDbJobStore : IJobStore
     public Task<bool> IsJobGroupPaused(string groupName, CancellationToken token = default)
     {
         // This is not implemented in the core ADO stuff, so we won't implement it here either
-        throw new NotImplementedException();
+        throw new NotSupportedException();
     }
 
 
     public Task<bool> IsTriggerGroupPaused(string groupName, CancellationToken token = default)
     {
         // This is not implemented in the core ADO stuff, so we won't implement it here either
-        throw new NotImplementedException();
+        throw new NotSupportedException();
     }
 
 
@@ -2066,7 +2066,6 @@ public class MongoDbJobStore : IJobStore
         IReadOnlyList<Scheduler>? failedRecords = null;
         if (!_firstCheckIn)
         {
-            // TODO: Check lock type
             failedRecords = await ClusterCheckIn().ConfigureAwait(false);
         }
 

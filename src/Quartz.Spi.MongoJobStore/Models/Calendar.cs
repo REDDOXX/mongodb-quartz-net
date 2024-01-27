@@ -26,9 +26,6 @@ internal class Calendar
     public required byte[] Content { get; init; }
 
 
-    public ICalendar CalContent { get; set; }
-
-
     public Calendar()
     {
     }

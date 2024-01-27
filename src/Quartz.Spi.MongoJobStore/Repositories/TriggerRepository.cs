@@ -36,7 +36,6 @@ internal class TriggerRepository : BaseRepository<Trigger>
             new CreateIndexModel<Trigger>(IndexBuilder.Ascending(x => x.NextFireTime))
         );
 
-        // TODO: Evaluate this index as it's on a low cardinality field
         // create index idx_qrtz_t_state on qrtz_triggers(trigger_state);
         await Collection.Indexes.CreateOneAsync(new CreateIndexModel<Trigger>(IndexBuilder.Ascending(x => x.State)));
 

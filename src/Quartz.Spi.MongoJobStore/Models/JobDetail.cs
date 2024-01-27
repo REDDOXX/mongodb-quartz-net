@@ -41,7 +41,7 @@ internal class JobDetail
     /// <summary>
     /// job_class_name
     /// </summary>
-    public Type JobType { get; set; }
+    public required Type JobType { get; set; }
 
     /// <summary>
     /// is_durable
@@ -56,7 +56,7 @@ internal class JobDetail
     /// <summary>
     /// job_data
     /// </summary>
-    public JobDataMap JobDataMap { get; set; }
+    public JobDataMap? JobDataMap { get; set; }
 
     /// <summary>
     /// IS_UPDATE_DATA (legacy: jobStateful)

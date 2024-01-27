@@ -13,24 +13,18 @@ public abstract class BaseStoreTests
     public const string DateStamps = "DATE_STAMPS";
     public static readonly TimeSpan TestTimeout = TimeSpan.FromSeconds(125);
 
-    protected static async Task<IScheduler> CreateScheduler(string instanceName = "QUARTZ_TEST")
+    protected static async Task<IScheduler> CreateScheduler(string instanceName = "QUARTZ_TEST", bool clustered = false)
     {
-        var sp = CreateServiceProvider(instanceName);
+        var sp = CreateServiceProvider(instanceName, clustered);
 
         var schedulerFactory = sp.GetRequiredService<ISchedulerFactory>();
         return await schedulerFactory.GetScheduler();
     }
 
-    private static ServiceProvider CreateServiceProvider(string instanceName)
+    private static ServiceProvider CreateServiceProvider(string instanceName, bool clustered)
     {
         var services = new ServiceCollection();
-        services.AddLogging(
-            builder =>
-            {
-                //
-                builder.AddDebug();
-            }
-        );
+        services.AddLogging(builder => { builder.AddDebug(); });
 
         services.AddSingleton<IMongoDbJobStoreConnectionFactory, LocalMongoDbJobStoreConnectionFactory>();
         services.AddQuartz(
@@ -43,6 +37,17 @@ public abstract class BaseStoreTests
                 q.UsePersistentStore<MongoDbJobStore>(
                     storage =>
                     {
+                        if (clustered)
+                        {
+                            storage.UseClustering(
+                                c =>
+                                {
+                                    c.CheckinInterval = TimeSpan.FromSeconds(10);
+                                    c.CheckinMisfireThreshold = TimeSpan.FromSeconds(15);
+                                }
+                            );
+                        }
+
                         storage.UseNewtonsoftJsonSerializer();
 
                         storage.ConfigureMongoDb(

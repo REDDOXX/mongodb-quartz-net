@@ -118,12 +118,12 @@ internal abstract class Trigger
     /// <summary>
     /// job_data
     /// </summary>
-    public JobDataMap JobDataMap { get; set; }
+    public required JobDataMap JobDataMap { get; set; }
 
     /// <summary>
     /// job_name, job_group
     /// </summary>
-    public JobKey JobKey { get; set; }
+    public required JobKey JobKey { get; set; }
 
 
     protected Trigger()
