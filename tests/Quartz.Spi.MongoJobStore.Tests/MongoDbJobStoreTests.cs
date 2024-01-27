@@ -1,5 +1,3 @@
-using System.Diagnostics;
-
 using FluentAssertions;
 
 using Quartz.Impl.Matchers;
@@ -10,14 +8,6 @@ using Xunit;
 [assembly: CollectionBehavior(DisableTestParallelization = true)]
 
 namespace Quartz.Spi.MongoJobStore.Tests;
-
-public class HelloJob : IJob
-{
-    public async Task Execute(IJobExecutionContext context)
-    {
-        await Console.Out.WriteLineAsync("HelloJob is executing.");
-    }
-}
 
 public class MongoDbJobStoreTests : BaseStoreTests, IDisposable
 {
@@ -323,7 +313,7 @@ public class MongoDbJobStoreTests : BaseStoreTests, IDisposable
             .WithSimpleSchedule(x => x.WithIntervalInSeconds(1).RepeatForever())
             .Build();
 
-        var triggersForJob = (IReadOnlyCollection<ITrigger>)new HashSet<ITrigger>
+        var triggersForJob = new HashSet<ITrigger>
         {
             trigger1,
             trigger2,

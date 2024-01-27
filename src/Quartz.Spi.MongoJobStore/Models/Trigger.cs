@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 
 using JetBrains.Annotations;
@@ -160,9 +161,10 @@ internal abstract class Trigger
         trigger.Description = Description;
         trigger.JobDataMap = JobDataMap;
         trigger.MisfireInstruction = MisfireInstruction;
-        trigger.EndTimeUtc = EndTime;
-        trigger.StartTimeUtc = StartTime;
         trigger.Priority = Priority;
+
+        trigger.StartTimeUtc = StartTime;
+        trigger.EndTimeUtc = EndTime; // EndTimeUtc validates with StartTimeUtc
 
         trigger.SetNextFireTimeUtc(NextFireTime);
         trigger.SetPreviousFireTimeUtc(PreviousFireTime);

@@ -15,7 +15,7 @@ internal abstract class BaseRepository<TDocument> : IRepository
     protected string InstanceName { get; }
 
 
-    public IMongoCollection<TDocument> Collection { get; }
+    protected IMongoCollection<TDocument> Collection { get; }
 
 
     protected static FilterDefinitionBuilder<TDocument> FilterBuilder => Builders<TDocument>.Filter;

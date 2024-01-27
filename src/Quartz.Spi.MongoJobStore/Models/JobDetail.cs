@@ -92,13 +92,15 @@ internal class JobDetail
     public IJobDetail GetJobDetail()
     {
         // The missing properties are figured out at runtime from the job type attributes
-
-        return JobBuilder.Create(JobType)
-            .WithIdentity(GetJobKey())
-            .WithDescription(Description)
-            .SetJobData(JobDataMap)
-            .StoreDurably(Durable)
+        return JobBuilder.Create()
+            .OfType(JobType)
             .RequestRecovery(RequestsRecovery)
+            .StoreDurably(Durable)
+            .DisallowConcurrentExecution(ConcurrentExecutionDisallowed)
+            .PersistJobDataAfterExecution(PersistJobDataAfterExecution)
+            .WithDescription(Description)
+            .WithIdentity(GetJobKey())
+            .SetJobData(JobDataMap)
             .Build();
     }
 

@@ -1,3 +1,5 @@
+using MongoDB.Bson.Serialization;
+using MongoDB.Bson.Serialization.Serializers;
 using MongoDB.Driver;
 
 using Quartz.Impl.Matchers;
@@ -269,6 +271,8 @@ internal class TriggerRepository : BaseRepository<Trigger>
             SortBuilder.Ascending(trigger => trigger.NextFireTime),
             SortBuilder.Descending(trigger => trigger.Priority)
         );
+
+        var t = Collection.Find(filter).Project(trigger => new TriggerKey(trigger.Name, trigger.Group));
 
         return await Collection.Find(filter)
             .Sort(sort)

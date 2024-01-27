@@ -107,7 +107,7 @@ public static class SmokeTestPerformer
 
                 trigger = new SimpleTriggerImpl("trig_" + count, schedId, 20, TimeSpan.FromSeconds(5))
                 {
-                    StartTimeUtc = DateTime.Now.AddMilliseconds(2000L)
+                    StartTimeUtc = DateTime.Now.AddMilliseconds(2000L),
                 };
                 await scheduler.ScheduleJob(job, trigger);
 
@@ -121,7 +121,7 @@ public static class SmokeTestPerformer
 
                 trigger = new SimpleTriggerImpl("trig_" + count, schedId, 20, TimeSpan.FromSeconds(3))
                 {
-                    StartTimeUtc = DateTime.Now.AddMilliseconds(1000L)
+                    StartTimeUtc = DateTime.Now.AddMilliseconds(1000L),
                 };
 
                 await scheduler.ScheduleJob(job, trigger);
@@ -135,7 +135,7 @@ public static class SmokeTestPerformer
                 };
                 trigger = new SimpleTriggerImpl("trig_" + count, schedId, 20, TimeSpan.FromSeconds(4))
                 {
-                    StartTimeUtc = DateTime.Now.AddMilliseconds(1000L)
+                    StartTimeUtc = DateTime.Now.AddMilliseconds(1000L),
                 };
                 await scheduler.ScheduleJob(job, trigger);
 
@@ -258,7 +258,7 @@ public static class SmokeTestPerformer
 
                 await scheduler.Start();
 
-                Thread.Sleep(TimeSpan.FromSeconds(3));
+                await Task.Delay(TimeSpan.FromSeconds(3));
 
                 await scheduler.PauseAll();
 
@@ -270,7 +270,7 @@ public static class SmokeTestPerformer
 
                 await scheduler.PauseJobs(GroupMatcher<JobKey>.GroupEquals(schedId));
 
-                Thread.Sleep(TimeSpan.FromSeconds(1));
+                await Task.Delay(TimeSpan.FromSeconds(1));
 
                 await scheduler.ResumeJobs(GroupMatcher<JobKey>.GroupEquals(schedId));
 
@@ -281,7 +281,7 @@ public static class SmokeTestPerformer
 
                 (await scheduler.GetPausedTriggerGroups()).Count.Should().Be(1);
 
-                Thread.Sleep(TimeSpan.FromSeconds(3));
+                await Task.Delay(TimeSpan.FromSeconds(3));
                 await scheduler.ResumeTriggers(GroupMatcher<TriggerKey>.GroupEquals(schedId));
 
                 (await scheduler.GetTrigger(new TriggerKey("trig_2", schedId))).Should().NotBeNull();
@@ -290,7 +290,11 @@ public static class SmokeTestPerformer
                 (await scheduler.GetCalendar("weeklyCalendar")).Should().NotBeNull();
 
                 var genericJobKey = new JobKey("genericJob", "genericGroup");
-                var genericJob = JobBuilder.Create<GenericJobType>().WithIdentity(genericJobKey).StoreDurably().Build();
+                var genericJob = JobBuilder.Create<GenericJobType>()
+                    .WithIdentity(genericJobKey)
+                    .WithDescription("HelloWorld Test")
+                    .StoreDurably()
+                    .Build();
 
                 await scheduler.AddJob(genericJob, false);
 
@@ -298,7 +302,7 @@ public static class SmokeTestPerformer
                 genericJob.Should().NotBeNull();
                 await scheduler.TriggerJob(genericJobKey);
 
-                Thread.Sleep(TimeSpan.FromSeconds(20));
+                await Task.Delay(TimeSpan.FromSeconds(60));
 
                 GenericJobType.TriggeredCount.Should().Be(1);
                 await scheduler.Standby();
@@ -436,12 +440,12 @@ public class SimpleRecoveryJob : IJob
     ///     <see cref="ITrigger" /> fires that is associated with
     ///     the <see cref="IJob" />.
     /// </summary>
-    public virtual Task Execute(IJobExecutionContext context)
+    public virtual async Task Execute(IJobExecutionContext context)
     {
         // delay for ten seconds
         try
         {
-            Thread.Sleep(TimeSpan.FromSeconds(10));
+            await Task.Delay(TimeSpan.FromSeconds(10));
         }
         catch (ThreadInterruptedException)
         {
@@ -452,7 +456,6 @@ public class SimpleRecoveryJob : IJob
 
         count++;
         data.Put(Count, count);
-        return Task.FromResult(0);
     }
 }
 

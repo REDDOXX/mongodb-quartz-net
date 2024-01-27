@@ -26,6 +26,8 @@ namespace Quartz.Spi.MongoJobStore;
 [PublicAPI]
 public class MongoDbJobStore : IJobStore
 {
+    private static readonly TimeSpan SleepThreshold = TimeSpan.FromMilliseconds(1000);
+
     internal static readonly JsonObjectSerializer ObjectSerializer = new();
 
     private const string KeySignalChangeForTxCompletion = "sigChangeForTxCompletion";
@@ -60,6 +62,8 @@ public class MongoDbJobStore : IJobStore
 
     private SchedulerId _schedulerId;
     private bool _schedulerRunning;
+
+    private readonly SemaphoreSlim _pendingLocksSemaphore = new(1);
 
 
     public string? ConnectionString { get; set; }
@@ -132,7 +136,7 @@ public class MongoDbJobStore : IJobStore
 
     protected internal DateTimeOffset LastCheckin { get; set; } = SystemTime.UtcNow();
 
-    protected bool firstCheckIn = true;
+    protected bool _firstCheckIn = true;
 
 
     protected DateTimeOffset MisfireTime
@@ -166,11 +170,13 @@ public class MongoDbJobStore : IJobStore
 
     public int ThreadPoolSize { get; set; }
 
+    static MongoDbJobStore()
+    {
+        JobStoreClassMap.RegisterClassMaps();
+    }
 
     public MongoDbJobStore(ILoggerFactory loggerFactory, IMongoDbJobStoreConnectionFactory connectionFactory)
     {
-        JobStoreClassMap.RegisterClassMaps();
-
         ObjectSerializer.Initialize();
 
         _connectionFactory = connectionFactory;
@@ -299,13 +305,18 @@ public class MongoDbJobStore : IJobStore
     {
         try
         {
-            await using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
-            {
-                await StoreJobInternal(newJob, false).ConfigureAwait(false);
+            await ExecuteInTx(
+                    LockType.TriggerAccess,
+                    async () =>
+                    {
+                        await StoreJobInternal(newJob, false).ConfigureAwait(false);
 
-                await StoreTriggerInternal(newTrigger, newJob, false, Models.TriggerState.Waiting, false, false)
-                    .ConfigureAwait(false);
-            }
+                        await StoreTriggerInternal(newTrigger, newJob, false, Models.TriggerState.Waiting, false, false)
+                            .ConfigureAwait(false);
+                    },
+                    cancellationToken
+                )
+                .ConfigureAwait(false);
         }
         catch (AggregateException ex)
         {
@@ -332,14 +343,11 @@ public class MongoDbJobStore : IJobStore
     }
 
     // Checked
-    public async Task StoreJob(IJobDetail newJob, bool replaceExisting, CancellationToken token = default)
+    public Task StoreJob(IJobDetail newJob, bool replaceExisting, CancellationToken token = default)
     {
         try
         {
-            await using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
-            {
-                await StoreJobInternal(newJob, replaceExisting).ConfigureAwait(false);
-            }
+            return ExecuteInTx(LockType.TriggerAccess, () => StoreJobInternal(newJob, replaceExisting), token);
         }
         catch (Exception ex)
         {
@@ -348,7 +356,7 @@ public class MongoDbJobStore : IJobStore
     }
 
     // Checked
-    public async Task StoreJobsAndTriggers(
+    public Task StoreJobsAndTriggers(
         IReadOnlyDictionary<IJobDetail, IReadOnlyCollection<ITrigger>> triggersAndJobs,
         bool replace,
         CancellationToken cancellationToken = default
@@ -356,26 +364,30 @@ public class MongoDbJobStore : IJobStore
     {
         try
         {
-            await using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
-            {
-                foreach (var (job, triggers) in triggersAndJobs)
+            return ExecuteInTx(
+                LockType.TriggerAccess,
+                async () =>
                 {
-                    await StoreJobInternal(job, replace).ConfigureAwait(false);
-
-                    foreach (var trigger in triggers)
+                    foreach (var (job, triggers) in triggersAndJobs)
                     {
-                        await StoreTriggerInternal(
-                                (IOperableTrigger)trigger,
-                                job,
-                                replace,
-                                Models.TriggerState.Waiting,
-                                false,
-                                false
-                            )
-                            .ConfigureAwait(false);
+                        await StoreJobInternal(job, replace).ConfigureAwait(false);
+
+                        foreach (var trigger in triggers)
+                        {
+                            await StoreTriggerInternal(
+                                    (IOperableTrigger)trigger,
+                                    job,
+                                    replace,
+                                    Models.TriggerState.Waiting,
+                                    false,
+                                    false
+                                )
+                                .ConfigureAwait(false);
+                        }
                     }
-                }
-            }
+                },
+                cancellationToken
+            );
         }
         catch (AggregateException ex)
         {
@@ -387,14 +399,11 @@ public class MongoDbJobStore : IJobStore
         }
     }
 
-    public async Task<bool> RemoveJob(JobKey jobKey, CancellationToken token = default)
+    public Task<bool> RemoveJob(JobKey jobKey, CancellationToken token = default)
     {
         try
         {
-            await using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
-            {
-                return await RemoveJobInternal(jobKey).ConfigureAwait(false);
-            }
+            return ExecuteInTx(LockType.TriggerAccess, () => RemoveJobInternal(jobKey), token);
         }
         catch (Exception ex)
         {
@@ -403,21 +412,25 @@ public class MongoDbJobStore : IJobStore
     }
 
     // Checked
-    public async Task<bool> RemoveJobs(IReadOnlyCollection<JobKey> jobKeys, CancellationToken token = default)
+    public Task<bool> RemoveJobs(IReadOnlyCollection<JobKey> jobKeys, CancellationToken token = default)
     {
         try
         {
-            await using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
-            {
-                var result = true;
-
-                foreach (var jobKey in jobKeys)
+            return ExecuteInTx(
+                LockType.TriggerAccess,
+                async () =>
                 {
-                    result = result && await RemoveJobInternal(jobKey).ConfigureAwait(false);
-                }
+                    var result = true;
 
-                return result;
-            }
+                    foreach (var jobKey in jobKeys)
+                    {
+                        result = result && await RemoveJobInternal(jobKey).ConfigureAwait(false);
+                    }
+
+                    return result;
+                },
+                token
+            );
         }
         catch (Exception ex)
         {
@@ -434,26 +447,24 @@ public class MongoDbJobStore : IJobStore
     }
 
     // Checked
-    public async Task StoreTrigger(
+    public Task StoreTrigger(
         IOperableTrigger newTrigger,
         bool replaceExisting,
         CancellationToken cancellationToken = default
     )
     {
-        await using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
-        {
-            await StoreTriggerInternal(newTrigger, null, replaceExisting, Models.TriggerState.Waiting, false, false);
-        }
+        return ExecuteInTx(
+            LockType.TriggerAccess,
+            () => StoreTriggerInternal(newTrigger, null, replaceExisting, Models.TriggerState.Waiting, false, false),
+            cancellationToken
+        );
     }
 
-    public async Task<bool> RemoveTrigger(TriggerKey triggerKey, CancellationToken token = default)
+    public Task<bool> RemoveTrigger(TriggerKey triggerKey, CancellationToken token = default)
     {
         try
         {
-            await using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
-            {
-                return await RemoveTriggerInternal(triggerKey).ConfigureAwait(false);
-            }
+            return ExecuteInTx(LockType.TriggerAccess, () => RemoveTriggerInternal(triggerKey), token);
         }
         catch (Exception ex)
         {
@@ -462,24 +473,25 @@ public class MongoDbJobStore : IJobStore
     }
 
     // Checked
-    public async Task<bool> RemoveTriggers(
-        IReadOnlyCollection<TriggerKey> triggerKeys,
-        CancellationToken token = default
-    )
+    public Task<bool> RemoveTriggers(IReadOnlyCollection<TriggerKey> triggerKeys, CancellationToken token = default)
     {
         try
         {
-            await using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
-            {
-                var result = true;
-
-                foreach (var triggerKey in triggerKeys)
+            return ExecuteInTx(
+                LockType.TriggerAccess,
+                async () =>
                 {
-                    result = result && await RemoveTriggerInternal(triggerKey).ConfigureAwait(false);
-                }
+                    var result = true;
 
-                return result;
-            }
+                    foreach (var triggerKey in triggerKeys)
+                    {
+                        result = result && await RemoveTriggerInternal(triggerKey).ConfigureAwait(false);
+                    }
+
+                    return result;
+                },
+                token
+            );
         }
         catch (Exception ex)
         {
@@ -488,7 +500,7 @@ public class MongoDbJobStore : IJobStore
     }
 
     // Checked
-    public async Task<bool> ReplaceTrigger(
+    public Task<bool> ReplaceTrigger(
         TriggerKey triggerKey,
         IOperableTrigger newTrigger,
         CancellationToken token = default
@@ -496,10 +508,7 @@ public class MongoDbJobStore : IJobStore
     {
         try
         {
-            await using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
-            {
-                return await ReplaceTriggerInternal(triggerKey, newTrigger).ConfigureAwait(false);
-            }
+            return ExecuteInTx(LockType.TriggerAccess, () => ReplaceTriggerInternal(triggerKey, newTrigger), token);
         }
         catch (Exception ex)
         {
@@ -533,19 +542,23 @@ public class MongoDbJobStore : IJobStore
         return await _triggerRepository.TriggerExists(triggerKey).ConfigureAwait(false);
     }
 
-    public async Task ClearAllSchedulingData(CancellationToken token = default)
+    public Task ClearAllSchedulingData(CancellationToken token = default)
     {
         try
         {
-            await using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
-            {
-                await _calendarRepository.DeleteAll().ConfigureAwait(false);
-                await _firedTriggerRepository.DeleteAll().ConfigureAwait(false);
-                await _jobDetailRepository.DeleteAll().ConfigureAwait(false);
-                await _pausedTriggerGroupRepository.DeleteAll().ConfigureAwait(false);
-                await _schedulerRepository.DeleteAll().ConfigureAwait(false);
-                await _triggerRepository.DeleteAll().ConfigureAwait(false);
-            }
+            return ExecuteInTx(
+                LockType.TriggerAccess,
+                async () =>
+                {
+                    await _calendarRepository.DeleteAll().ConfigureAwait(false);
+                    await _firedTriggerRepository.DeleteAll().ConfigureAwait(false);
+                    await _jobDetailRepository.DeleteAll().ConfigureAwait(false);
+                    await _pausedTriggerGroupRepository.DeleteAll().ConfigureAwait(false);
+                    await _schedulerRepository.DeleteAll().ConfigureAwait(false);
+                    await _triggerRepository.DeleteAll().ConfigureAwait(false);
+                },
+                token
+            );
         }
         catch (Exception ex)
         {
@@ -554,7 +567,7 @@ public class MongoDbJobStore : IJobStore
     }
 
     // Checked
-    public async Task StoreCalendar(
+    public Task StoreCalendar(
         string name,
         ICalendar calendar,
         bool replaceExisting,
@@ -564,11 +577,11 @@ public class MongoDbJobStore : IJobStore
     {
         try
         {
-            await using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
-            {
-                await StoreCalendarInternal(name, calendar, replaceExisting, updateTriggers, cancellationToken)
-                    .ConfigureAwait(false);
-            }
+            return ExecuteInTx(
+                LockType.TriggerAccess,
+                () => StoreCalendarInternal(name, calendar, replaceExisting, updateTriggers, cancellationToken),
+                cancellationToken
+            );
         }
         catch (Exception ex)
         {
@@ -577,14 +590,11 @@ public class MongoDbJobStore : IJobStore
     }
 
     // Checked
-    public async Task<bool> RemoveCalendar(string calName, CancellationToken token = default)
+    public Task<bool> RemoveCalendar(string calName, CancellationToken token = default)
     {
         try
         {
-            await using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
-            {
-                return await RemoveCalendarInternal(calName).ConfigureAwait(false);
-            }
+            return ExecuteInTx(LockType.TriggerAccess, () => RemoveCalendarInternal(calName), token);
         }
         catch (Exception ex)
         {
@@ -689,27 +699,31 @@ public class MongoDbJobStore : IJobStore
     }
 
     // Checked
-    public async Task ResetTriggerFromErrorState(TriggerKey triggerKey, CancellationToken cancellationToken = default)
+    public Task ResetTriggerFromErrorState(TriggerKey triggerKey, CancellationToken cancellationToken = default)
     {
         try
         {
-            await using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
-            {
-                var newState = Models.TriggerState.Waiting;
-
-                if (await _pausedTriggerGroupRepository.IsTriggerGroupPaused(triggerKey.Group))
+            return ExecuteInTx(
+                LockType.TriggerAccess,
+                async () =>
                 {
-                    newState = Models.TriggerState.Paused;
-                }
+                    var newState = Models.TriggerState.Waiting;
 
-                await _triggerRepository.UpdateTriggerState(triggerKey, newState, Models.TriggerState.Error);
+                    if (await _pausedTriggerGroupRepository.IsTriggerGroupPaused(triggerKey.Group))
+                    {
+                        newState = Models.TriggerState.Paused;
+                    }
 
-                _logger.LogInformation(
-                    "Trigger {TriggerKey} reset from ERROR state to: {NewState}",
-                    triggerKey,
-                    newState
-                );
-            }
+                    await _triggerRepository.UpdateTriggerState(triggerKey, newState, Models.TriggerState.Error);
+
+                    _logger.LogInformation(
+                        "Trigger {TriggerKey} reset from ERROR state to: {NewState}",
+                        triggerKey,
+                        newState
+                    );
+                },
+                cancellationToken
+            );
         }
         catch (Exception ex)
         {
@@ -721,14 +735,11 @@ public class MongoDbJobStore : IJobStore
     }
 
     // Checked
-    public async Task PauseTrigger(TriggerKey triggerKey, CancellationToken token = default)
+    public Task PauseTrigger(TriggerKey triggerKey, CancellationToken token = default)
     {
         try
         {
-            await using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
-            {
-                await PauseTriggerInternal(triggerKey).ConfigureAwait(false);
-            }
+            return ExecuteInTx(LockType.TriggerAccess, () => PauseTriggerInternal(triggerKey), token);
         }
         catch (Exception ex)
         {
@@ -737,17 +748,14 @@ public class MongoDbJobStore : IJobStore
     }
 
     // Checked
-    public async Task<IReadOnlyCollection<string>> PauseTriggers(
+    public Task<IReadOnlyCollection<string>> PauseTriggers(
         GroupMatcher<TriggerKey> matcher,
         CancellationToken token = default
     )
     {
         try
         {
-            await using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
-            {
-                return await PauseTriggerGroupInternal(matcher, token).ConfigureAwait(false);
-            }
+            return ExecuteInTx(LockType.TriggerAccess, () => PauseTriggerGroupInternal(matcher), token);
         }
         catch (Exception ex)
         {
@@ -756,53 +764,58 @@ public class MongoDbJobStore : IJobStore
     }
 
     // Checked
-    public async Task PauseJob(JobKey jobKey, CancellationToken token = default)
+    public Task PauseJob(JobKey jobKey, CancellationToken token = default)
     {
         try
         {
-            await using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
-            {
-                var triggers = await GetTriggersForJob(jobKey, token).ConfigureAwait(false);
-
-                foreach (var operableTrigger in triggers)
+            return ExecuteInTx(
+                LockType.TriggerAccess,
+                async () =>
                 {
-                    await PauseTriggerInternal(operableTrigger.Key).ConfigureAwait(false);
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            throw new JobPersistenceException(ex.Message, ex);
-        }
-    }
+                    var triggers = await GetTriggersForJob(jobKey, token).ConfigureAwait(false);
 
-    // Checked
-    public async Task<IReadOnlyCollection<string>> PauseJobs(
-        GroupMatcher<JobKey> matcher,
-        CancellationToken token = default
-    )
-    {
-        try
-        {
-            await using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
-            {
-                var jobKeys = await _jobDetailRepository.GetJobsKeys(matcher).ConfigureAwait(false);
-
-                var groupNames = new HashSet<string>();
-                foreach (var jobKey in jobKeys)
-                {
-                    var triggers = await _triggerRepository.GetTriggers(jobKey).ConfigureAwait(false);
-
-                    foreach (var trigger in triggers)
+                    foreach (var operableTrigger in triggers)
                     {
-                        await PauseTriggerInternal(trigger.GetTriggerKey()).ConfigureAwait(false);
+                        await PauseTriggerInternal(operableTrigger.Key).ConfigureAwait(false);
+                    }
+                },
+                token
+            );
+        }
+        catch (Exception ex)
+        {
+            throw new JobPersistenceException(ex.Message, ex);
+        }
+    }
+
+    // Checked
+    public Task<IReadOnlyCollection<string>> PauseJobs(GroupMatcher<JobKey> matcher, CancellationToken token = default)
+    {
+        try
+        {
+            return ExecuteInTx<IReadOnlyCollection<string>>(
+                LockType.TriggerAccess,
+                async () =>
+                {
+                    var jobKeys = await _jobDetailRepository.GetJobsKeys(matcher).ConfigureAwait(false);
+
+                    var groupNames = new HashSet<string>();
+                    foreach (var jobKey in jobKeys)
+                    {
+                        var triggers = await _triggerRepository.GetTriggers(jobKey).ConfigureAwait(false);
+
+                        foreach (var trigger in triggers)
+                        {
+                            await PauseTriggerInternal(trigger.GetTriggerKey()).ConfigureAwait(false);
+                        }
+
+                        groupNames.Add(jobKey.Group);
                     }
 
-                    groupNames.Add(jobKey.Group);
-                }
-
-                return groupNames;
-            }
+                    return groupNames;
+                },
+                token
+            );
         }
         catch (Exception ex)
         {
@@ -811,14 +824,11 @@ public class MongoDbJobStore : IJobStore
     }
 
     // Checked
-    public async Task ResumeTrigger(TriggerKey triggerKey, CancellationToken token = default)
+    public Task ResumeTrigger(TriggerKey triggerKey, CancellationToken token = default)
     {
         try
         {
-            await using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
-            {
-                await ResumeTriggerInternal(triggerKey, token).ConfigureAwait(false);
-            }
+            return ExecuteInTx(LockType.TriggerAccess, () => ResumeTriggerInternal(triggerKey), token);
         }
         catch (Exception ex)
         {
@@ -827,17 +837,14 @@ public class MongoDbJobStore : IJobStore
     }
 
     // Checked
-    public async Task<IReadOnlyCollection<string>> ResumeTriggers(
+    public Task<IReadOnlyCollection<string>> ResumeTriggers(
         GroupMatcher<TriggerKey> matcher,
         CancellationToken token = default
     )
     {
         try
         {
-            await using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
-            {
-                return await ResumeTriggersInternal(matcher, token).ConfigureAwait(false);
-            }
+            return ExecuteInTx(LockType.TriggerAccess, () => ResumeTriggersInternal(matcher, token), token);
         }
         catch (Exception ex)
         {
@@ -853,19 +860,21 @@ public class MongoDbJobStore : IJobStore
     }
 
     // Checked
-    public async Task ResumeJob(JobKey jobKey, CancellationToken cancellationToken = default)
+    public Task ResumeJob(JobKey jobKey, CancellationToken cancellationToken = default)
     {
         try
         {
-            await using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
-            {
-                var triggers = await _triggerRepository.GetTriggers(jobKey).ConfigureAwait(false);
+            return ExecuteInTx(
+                LockType.TriggerAccess,
+                async () =>
+                {
+                    var triggers = await _triggerRepository.GetTriggers(jobKey).ConfigureAwait(false);
 
-                await Task.WhenAll(
-                        triggers.Select(trigger => ResumeTriggerInternal(trigger.GetTriggerKey(), cancellationToken))
-                    )
-                    .ConfigureAwait(false);
-            }
+                    await Task.WhenAll(triggers.Select(trigger => ResumeTriggerInternal(trigger.GetTriggerKey())))
+                        .ConfigureAwait(false);
+                },
+                cancellationToken
+            );
         }
         catch (AggregateException ex)
         {
@@ -877,29 +886,29 @@ public class MongoDbJobStore : IJobStore
         }
     }
 
-    public async Task<IReadOnlyCollection<string>> ResumeJobs(
+    public Task<IReadOnlyCollection<string>> ResumeJobs(
         GroupMatcher<JobKey> matcher,
         CancellationToken cancellationToken = default
     )
     {
         try
         {
-            await using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
-            {
-                var jobKeys = await _jobDetailRepository.GetJobsKeys(matcher).ConfigureAwait(false);
-                foreach (var jobKey in jobKeys)
+            return ExecuteInTx<IReadOnlyCollection<string>>(
+                LockType.TriggerAccess,
+                async () =>
                 {
-                    var triggers = await _triggerRepository.GetTriggers(jobKey).ConfigureAwait(false);
-                    await Task.WhenAll(
-                            triggers.Select(
-                                trigger => ResumeTriggerInternal(trigger.GetTrigger().Key, cancellationToken)
-                            )
-                        )
-                        .ConfigureAwait(false);
-                }
+                    var jobKeys = await _jobDetailRepository.GetJobsKeys(matcher).ConfigureAwait(false);
+                    foreach (var jobKey in jobKeys)
+                    {
+                        var triggers = await _triggerRepository.GetTriggers(jobKey).ConfigureAwait(false);
+                        await Task.WhenAll(triggers.Select(trigger => ResumeTriggerInternal(trigger.GetTrigger().Key)))
+                            .ConfigureAwait(false);
+                    }
 
-                return new HashSet<string>(jobKeys.Select(key => key.Group));
-            }
+                    return new HashSet<string>(jobKeys.Select(key => key.Group));
+                },
+                cancellationToken
+            );
         }
         catch (AggregateException ex)
         {
@@ -911,14 +920,11 @@ public class MongoDbJobStore : IJobStore
         }
     }
 
-    public async Task PauseAll(CancellationToken token = default)
+    public Task PauseAll(CancellationToken token = default)
     {
         try
         {
-            await using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
-            {
-                await PauseAllInternal().ConfigureAwait(false);
-            }
+            return ExecuteInTx(LockType.TriggerAccess, PauseAllInternal, token);
         }
         catch (Exception ex)
         {
@@ -927,14 +933,11 @@ public class MongoDbJobStore : IJobStore
     }
 
     // Checked
-    public async Task ResumeAll(CancellationToken token = default)
+    public Task ResumeAll(CancellationToken token = default)
     {
         try
         {
-            await using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
-            {
-                await ResumeAllInternal().ConfigureAwait(false);
-            }
+            return ExecuteInTx(LockType.TriggerAccess, ResumeAllInternal, token);
         }
         catch (Exception ex)
         {
@@ -943,7 +946,7 @@ public class MongoDbJobStore : IJobStore
     }
 
     // Checked
-    public async Task<IReadOnlyCollection<IOperableTrigger>> AcquireNextTriggers(
+    public Task<IReadOnlyCollection<IOperableTrigger>> AcquireNextTriggers(
         DateTimeOffset noLaterThan,
         int maxCount,
         TimeSpan timeWindow,
@@ -952,10 +955,11 @@ public class MongoDbJobStore : IJobStore
     {
         try
         {
-            await using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
-            {
-                return await AcquireNextTriggersInternal(noLaterThan, maxCount, timeWindow).ConfigureAwait(false);
-            }
+            return ExecuteInTx(
+                LockType.TriggerAccess,
+                () => AcquireNextTriggersInternal(noLaterThan, maxCount, timeWindow),
+                token
+            );
         }
         catch (Exception ex)
         {
@@ -964,27 +968,31 @@ public class MongoDbJobStore : IJobStore
     }
 
     // Checked
-    public async Task ReleaseAcquiredTrigger(IOperableTrigger trigger, CancellationToken token = default)
+    public Task ReleaseAcquiredTrigger(IOperableTrigger trigger, CancellationToken token = default)
     {
         try
         {
-            await using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
-            {
-                await _triggerRepository.UpdateTriggerState(
-                        trigger.Key,
-                        Models.TriggerState.Waiting,
-                        Models.TriggerState.Acquired
-                    )
-                    .ConfigureAwait(false);
-                await _triggerRepository.UpdateTriggerState(
-                        trigger.Key,
-                        Models.TriggerState.Waiting,
-                        Models.TriggerState.Blocked
-                    )
-                    .ConfigureAwait(false);
+            return ExecuteInTx(
+                LockType.TriggerAccess,
+                async () =>
+                {
+                    await _triggerRepository.UpdateTriggerState(
+                            trigger.Key,
+                            Models.TriggerState.Waiting,
+                            Models.TriggerState.Acquired
+                        )
+                        .ConfigureAwait(false);
+                    await _triggerRepository.UpdateTriggerState(
+                            trigger.Key,
+                            Models.TriggerState.Waiting,
+                            Models.TriggerState.Blocked
+                        )
+                        .ConfigureAwait(false);
 
-                await _firedTriggerRepository.DeleteFiredTrigger(trigger.FireInstanceId).ConfigureAwait(false);
-            }
+                    await _firedTriggerRepository.DeleteFiredTrigger(trigger.FireInstanceId).ConfigureAwait(false);
+                },
+                token
+            );
         }
         catch (Exception ex)
         {
@@ -993,36 +1001,40 @@ public class MongoDbJobStore : IJobStore
     }
 
     // Checked
-    public async Task<IReadOnlyCollection<TriggerFiredResult>> TriggersFired(
+    public Task<IReadOnlyCollection<TriggerFiredResult>> TriggersFired(
         IReadOnlyCollection<IOperableTrigger> triggers,
         CancellationToken token = default
     )
     {
         try
         {
-            await using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
-            {
-                var results = new List<TriggerFiredResult>();
-
-                foreach (var operableTrigger in triggers)
+            return ExecuteInTx<IReadOnlyCollection<TriggerFiredResult>>(
+                LockType.TriggerAccess,
+                async () =>
                 {
-                    TriggerFiredResult result;
-                    try
+                    var results = new List<TriggerFiredResult>();
+
+                    foreach (var operableTrigger in triggers)
                     {
-                        var bundle = await TriggerFiredInternal(operableTrigger).ConfigureAwait(false);
-                        result = new TriggerFiredResult(bundle);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "Caught exception: {Message}", ex.Message);
-                        result = new TriggerFiredResult(ex);
+                        TriggerFiredResult result;
+                        try
+                        {
+                            var bundle = await TriggerFiredInternal(operableTrigger).ConfigureAwait(false);
+                            result = new TriggerFiredResult(bundle);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "Caught exception: {Message}", ex.Message);
+                            result = new TriggerFiredResult(ex);
+                        }
+
+                        results.Add(result);
                     }
 
-                    results.Add(result);
-                }
-
-                return results;
-            }
+                    return results;
+                },
+                token
+            );
         }
         catch (Exception ex)
         {
@@ -1040,10 +1052,12 @@ public class MongoDbJobStore : IJobStore
     {
         try
         {
-            await using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
-            {
-                await TriggeredJobCompleteInternal(trigger, jobDetail, triggerInstCode).ConfigureAwait(false);
-            }
+            await ExecuteInTx(
+                    LockType.TriggerAccess,
+                    () => TriggeredJobCompleteInternal(trigger, jobDetail, triggerInstCode),
+                    token
+                )
+                .ConfigureAwait(false);
 
             var sigTime = ClearAndGetSignalSchedulingChangeOnTxCompletion();
             if (sigTime != null)
@@ -1068,10 +1082,10 @@ public class MongoDbJobStore : IJobStore
                 return RecoverMisfiredJobsResult.NoOp;
             }
 
-            await using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
-            {
-                return await RecoverMisfiredJobsInternal(false).ConfigureAwait(false);
-            }
+            return await ExecuteInTx(
+                LockType.TriggerAccess,
+                async () => await RecoverMisfiredJobsInternal(false).ConfigureAwait(false)
+            );
         }
         catch (Exception ex)
         {
@@ -1079,12 +1093,9 @@ public class MongoDbJobStore : IJobStore
         }
     }
 
-    private async Task RecoverJobs()
+    private Task RecoverJobs()
     {
-        await using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId).ConfigureAwait(false))
-        {
-            await RecoverJobsInternal().ConfigureAwait(false);
-        }
+        return ExecuteInTx(LockType.TriggerAccess, RecoverJobsInternal);
     }
 
     // Checked
@@ -1112,10 +1123,7 @@ public class MongoDbJobStore : IJobStore
     }
 
     // Checked
-    private async Task<IReadOnlyCollection<string>> PauseTriggerGroupInternal(
-        GroupMatcher<TriggerKey> matcher,
-        CancellationToken token = default
-    )
+    private async Task<IReadOnlyCollection<string>> PauseTriggerGroupInternal(GroupMatcher<TriggerKey> matcher)
     {
         await _triggerRepository.UpdateTriggersStates(
                 matcher,
@@ -1265,7 +1273,7 @@ public class MongoDbJobStore : IJobStore
     }
 
     // Checked
-    private async Task ResumeTriggerInternal(TriggerKey triggerKey, CancellationToken cancellationToken = default)
+    private async Task ResumeTriggerInternal(TriggerKey triggerKey)
     {
         var trigger = await _triggerRepository.GetTrigger(triggerKey).ConfigureAwait(false);
 
@@ -1303,7 +1311,7 @@ public class MongoDbJobStore : IJobStore
         var keys = await _triggerRepository.GetTriggerKeys(matcher).ConfigureAwait(false);
         foreach (var triggerKey in keys)
         {
-            await ResumeTriggerInternal(triggerKey, token).ConfigureAwait(false);
+            await ResumeTriggerInternal(triggerKey).ConfigureAwait(false);
             groups.Add(triggerKey.Group);
         }
 
@@ -1664,10 +1672,7 @@ public class MongoDbJobStore : IJobStore
         TimeSpan timeWindow
     )
     {
-        if (timeWindow < TimeSpan.Zero)
-        {
-            throw new ArgumentOutOfRangeException(nameof(timeWindow));
-        }
+        ArgumentOutOfRangeException.ThrowIfLessThan(timeWindow, TimeSpan.Zero);
 
         var acquiredTriggers = new List<IOperableTrigger>();
         var acquiredJobKeysForNoConcurrentExec = new HashSet<JobKey>();
@@ -1722,19 +1727,11 @@ public class MongoDbJobStore : IJobStore
                 // If trigger's job is set as @DisallowConcurrentExecution, and it has already been added to result, then
                 // put it back into the timeTriggers set and continue to search for next trigger.
 
-                if (ObjectUtils.IsAttributePresent(jobDetail.JobType, typeof(DisallowConcurrentExecutionAttribute)))
-                {
-                    if (!acquiredJobKeysForNoConcurrentExec.Add(nextTrigger.JobKey))
-                    {
-                        continue; // next trigger
-                    }
-                }
-
                 if (jobDetail.ConcurrentExecutionDisallowed)
                 {
                     if (!acquiredJobKeysForNoConcurrentExec.Add(jobKey))
                     {
-                        continue;
+                        continue; // next trigger
                     }
                 }
 
@@ -2082,39 +2079,47 @@ public class MongoDbJobStore : IJobStore
         // and is almost never necessary).  This must be done in a separate
         // transaction to prevent a deadlock under recovery conditions.
         IReadOnlyList<Scheduler>? failedRecords = null;
-        if (!firstCheckIn)
+        if (!_firstCheckIn)
         {
             // TODO: Check lock type
             failedRecords = await ClusterCheckIn().ConfigureAwait(false);
         }
 
-        if (firstCheckIn || failedRecords != null && failedRecords.Count > 0)
+        if (_firstCheckIn || failedRecords != null && failedRecords.Count > 0)
         {
-            await using (await _lockManager.AcquireLock(LockType.StateAccess, InstanceId))
-            {
-                // Now that we own the lock, make sure we still have work to do.
-                // The first time through, we also need to make sure we update/create our state record
-                if (firstCheckIn)
+            await ExecuteInTx(
+                LockType.StateAccess,
+                async () =>
                 {
-                    failedRecords = await ClusterCheckIn().ConfigureAwait(false);
-                }
-                else
-                {
-                    failedRecords = await FindFailedInstances().ConfigureAwait(false);
-                }
-
-                if (failedRecords.Count > 0)
-                {
-                    await using (await _lockManager.AcquireLock(LockType.TriggerAccess, InstanceId))
+                    // Now that we own the lock, make sure we still have work to do.
+                    // The first time through, we also need to make sure we update/create our state record
+                    if (_firstCheckIn)
                     {
-                        await ClusterRecover(failedRecords).ConfigureAwait(false);
-                        recovered = true;
+                        failedRecords = await ClusterCheckIn().ConfigureAwait(false);
                     }
-                }
-            }
+                    else
+                    {
+                        failedRecords = await FindFailedInstances().ConfigureAwait(false);
+                    }
+
+                    if (failedRecords.Count > 0)
+                    {
+                        await ExecuteInTx(
+                            LockType.TriggerAccess,
+                            async () =>
+                            {
+                                await ClusterRecover(failedRecords).ConfigureAwait(false);
+                                recovered = true;
+                            },
+                            cancellationToken
+                        );
+                    }
+                },
+                cancellationToken
+            );
         }
 
-        firstCheckIn = false;
+        _firstCheckIn = false;
 
         return recovered;
     }
@@ -2137,7 +2142,7 @@ public class MongoDbJobStore : IJobStore
             if (scheduler.InstanceId == InstanceId)
             {
                 foundThisScheduler = true;
-                if (firstCheckIn)
+                if (_firstCheckIn)
                 {
                     failedInstances.Add(scheduler);
                 }
@@ -2153,7 +2158,7 @@ public class MongoDbJobStore : IJobStore
         }
 
         // The first time through, also check for orphaned fired triggers.
-        if (firstCheckIn)
+        if (_firstCheckIn)
         {
             var orphanedInstances = await FindOrphanedFailedInstances(schedulers).ConfigureAwait(false);
             failedInstances.AddRange(orphanedInstances);
@@ -2161,7 +2166,7 @@ public class MongoDbJobStore : IJobStore
 
         // If not the first time but we didn't find our own instance, then
         // Someone must have done recovery for us.
-        if (!foundThisScheduler && !firstCheckIn)
+        if (!foundThisScheduler && !_firstCheckIn)
         {
             // TODO: revisit when handle self-failed-out impl'ed (see TODO in clusterCheckIn() below)
             _logger.LogWarning(
@@ -2464,4 +2469,55 @@ public class MongoDbJobStore : IJobStore
             _logger.LogDebug(message, args);
         }
     }
+
+
+    #region Locking
+
+    private async Task ExecuteInTx(
+        LockType lockType,
+        Func<Task> txCallback,
+        CancellationToken cancellationToken = default
+    )
+    {
+        await ExecuteInTx<object?>(
+                lockType,
+                async () =>
+                {
+                    await txCallback.Invoke().ConfigureAwait(false);
+                    return null;
+                },
+                cancellationToken
+            )
+            .ConfigureAwait(false);
+    }
+
+
+    private async Task<T> ExecuteInTx<T>(
+        LockType lockType,
+        Func<Task<T>> txCallback,
+        CancellationToken cancellationToken = default
+    )
+    {
+        while (true)
+        {
+            await _pendingLocksSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                if (await _lockRepository.TryAcquireLock(lockType, InstanceId).ConfigureAwait(false))
+                {
+                    return await txCallback.Invoke().ConfigureAwait(false);
+                }
+            }
+            finally
+            {
+                await _lockRepository.ReleaseLock(lockType, InstanceId).ConfigureAwait(false);
+
+                _pendingLocksSemaphore.Release();
+            }
+
+            await Task.Delay(SleepThreshold, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    #endregion
 }

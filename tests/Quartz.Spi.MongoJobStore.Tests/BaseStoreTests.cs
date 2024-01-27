@@ -38,6 +38,7 @@ public abstract class BaseStoreTests
             {
                 q.SchedulerId = "AUTO";
                 q.SchedulerName = "QUARTZ_TEST";
+                q.MaxBatchSize = 10;
 
                 q.UsePersistentStore<MongoDbJobStore>(
                     storage =>
