@@ -466,6 +466,10 @@ internal class TriggerRepository : BaseRepository<Trigger>
 
     public async Task<long> DeleteTriggers(JobKey jobKey)
     {
+        // SELECT TRIGGER_NAME, TRIGGER_GROUP FROM TRIGGERS WHERE SCHED_NAME = @schedulerName AND JOB_NAME = @jobName AND JOB_GROUP = @jobGroup
+
+        // DELETE FROM TRIGGERS WHERE SCHED_NAME = @schedulerName AND TRIGGER_NAME = @triggerName AND TRIGGER_GROUP = @triggerGroup
+
         var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) & //
                      FilterBuilder.Eq(x => x.JobKey, jobKey);
 

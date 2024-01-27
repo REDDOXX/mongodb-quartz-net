@@ -38,4 +38,9 @@
 		<None Include="../../license.txt" Pack="true" PackagePath="/" />
 		<None Include="../../readme.md" Pack="true" PackagePath="/" />
 	</ItemGroup>
+
+
+	<ItemGroup>
+	  <Folder Include="Models\Id\" />
+	</ItemGroup>
 </Project>

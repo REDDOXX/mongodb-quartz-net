@@ -15,13 +15,13 @@ public abstract class BaseStoreTests
 
     protected static async Task<IScheduler> CreateScheduler(string instanceName = "QUARTZ_TEST")
     {
-        var sp = CreateServiceProvider();
+        var sp = CreateServiceProvider(instanceName);
 
         var schedulerFactory = sp.GetRequiredService<ISchedulerFactory>();
         return await schedulerFactory.GetScheduler();
     }
 
-    private static ServiceProvider CreateServiceProvider()
+    private static ServiceProvider CreateServiceProvider(string instanceName)
     {
         var services = new ServiceCollection();
         services.AddLogging(
@@ -37,7 +37,7 @@ public abstract class BaseStoreTests
             q =>
             {
                 q.SchedulerId = "AUTO";
-                q.SchedulerName = "QUARTZ_TEST";
+                q.SchedulerName = instanceName;
                 q.MaxBatchSize = 10;
 
                 q.UsePersistentStore<MongoDbJobStore>(
@@ -45,7 +45,13 @@ public abstract class BaseStoreTests
                     {
                         storage.UseNewtonsoftJsonSerializer();
 
-                        storage.ConfigureMongoDb(c => { c.CollectionPrefix = "HelloWorld"; });
+                        storage.ConfigureMongoDb(
+                            c =>
+                            {
+                                //
+                                c.CollectionPrefix = "HelloWorld";
+                            }
+                        );
                     }
                 );
             }

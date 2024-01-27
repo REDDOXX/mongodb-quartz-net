@@ -194,7 +194,7 @@ public class MongoDbJobStoreTests : BaseStoreTests, IDisposable
         await _scheduler.ScheduleJob(job, trigger1);
 
         job = await _scheduler.GetJobDetail(job.Key);
-        job.Should().NotBeNull();
+        Assert.NotNull(job);
 
         var trigger2 = TriggerBuilder.Create()
             .ForJob(job)
@@ -203,7 +203,7 @@ public class MongoDbJobStoreTests : BaseStoreTests, IDisposable
             .Build();
         await _scheduler.RescheduleJob(trigger1.Key, trigger2);
         job = await _scheduler.GetJobDetail(job.Key);
-        job.Should().NotBeNull();
+        Assert.NotNull(job);
     }
 
     [Fact]
@@ -372,15 +372,17 @@ public class MongoDbJobStoreTests : BaseStoreTests, IDisposable
             _scheduler.Context.Put(Barrier, barrier);
             _scheduler.Context.Put(DateStamps, jobExecTimestamps);
             await _scheduler.Start();
+
             var jobName = Guid.NewGuid().ToString();
             await _scheduler.AddJob(
                 JobBuilder.Create<SimpleJobWithSync>().WithIdentity(jobName).StoreDurably().Build(),
                 false
             );
+
             await _scheduler.ScheduleJob(TriggerBuilder.Create().ForJob(jobName).StartNow().Build());
             while ((await _scheduler.GetCurrentlyExecutingJobs()).Count == 0)
             {
-                Thread.Sleep(50);
+                await Task.Delay(50);
             }
         }
         finally
@@ -410,30 +412,34 @@ public class MongoDbJobStoreTests : BaseStoreTests, IDisposable
             await _scheduler.ScheduleJob(TriggerBuilder.Create().ForJob(jobName).StartNow().Build());
             while ((await _scheduler.GetCurrentlyExecutingJobs()).Count == 0)
             {
-                Thread.Sleep(50);
+                await Task.Delay(50);
             }
         }
-        finally
+        catch
         {
-            var task = Task.Run(
-                async () =>
-                {
-                    try
-                    {
-                        await _scheduler.Shutdown(true);
-                        shutdown = true;
-                    }
-                    catch (SchedulerException ex)
-                    {
-                        throw new Exception("exception: " + ex.Message, ex);
-                    }
-                }
-            );
-            Thread.Sleep(1000);
-            shutdown.Should().BeFalse();
-            barrier.SignalAndWait(TestTimeout);
-            task.Wait();
+            // Ignored
         }
+
+        var task = Task.Run(
+            async () =>
+            {
+                try
+                {
+                    await _scheduler.Shutdown(true);
+                    shutdown = true;
+                }
+                catch (SchedulerException ex)
+                {
+                    throw new Exception("exception: " + ex.Message, ex);
+                }
+            }
+        );
+
+        await Task.Delay(1000);
+
+        shutdown.Should().BeFalse();
+        barrier.SignalAndWait(TestTimeout);
+        await task;
     }
 
     [Fact]
