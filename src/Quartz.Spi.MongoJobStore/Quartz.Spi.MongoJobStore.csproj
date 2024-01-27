@@ -19,8 +19,9 @@
 		<RepositoryType>GitHub</RepositoryType>
 		<PackageTags>Quartz.NET Store JobStore MongoDB</PackageTags>
 		<PackageProjectUrl>https://github.com/REDDOXX/mongodb-quartz-net</PackageProjectUrl>
-
+		
 		<Title>Quartz.Spi.MongoJobStore</Title>
+		<Description>MongoDb job-store implementation for quartz scheduler</Description>
 
 		<PackageLicenseFile>LICENSE.txt</PackageLicenseFile>
 		<PackageReadmeFile>README.md</PackageReadmeFile>
