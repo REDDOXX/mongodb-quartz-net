@@ -1,10 +1,12 @@
+using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
+
 using JetBrains.Annotations;
 
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 
 using Quartz.Impl.Triggers;
-using Quartz.Spi.MongoJobStore.Models.Id;
 
 namespace Quartz.Spi.MongoJobStore.Models;
 
@@ -22,6 +24,12 @@ internal enum TriggerState
     Deleted,
 }
 
+/// <summary>
+/// 
+/// </summary>
+/// <remarks>
+/// trigger_type has been removed as we're using the mongodb inheritance feature.
+/// </remarks>
 [UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
 [BsonDiscriminator(RootClass = true)]
 [BsonKnownTypes(
@@ -33,50 +41,103 @@ internal enum TriggerState
 internal abstract class Trigger
 {
     [BsonId]
-    public TriggerId Id { get; set; }
+    public ObjectId Id { get; set; }
 
-    public JobKey JobKey { get; set; }
+    /// <summary>
+    /// sched_name
+    /// </summary>
+    public required string InstanceName { get; set; }
 
-    public string Description { get; set; }
+    /// <summary>
+    /// trigger_name
+    /// </summary>
+    public required string Name { get; set; }
 
+    /// <summary>
+    /// trigger_group
+    /// </summary>
+    public required string Group { get; set; }
+
+
+    /// <summary>
+    /// description
+    /// </summary>
+    [BsonIgnoreIfNull]
+    public string? Description { get; set; }
+
+    /// <summary>
+    /// next_fire_time
+    /// </summary>
+    [BsonIgnoreIfNull]
     [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
     public DateTime? NextFireTime { get; set; }
 
+    /// <summary>
+    /// prev_fire_time
+    /// </summary>
+    [BsonIgnoreIfNull]
     [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
     public DateTime? PreviousFireTime { get; set; }
 
+    /// <summary>
+    /// trigger_state
+    /// </summary>
     [BsonRepresentation(BsonType.String)]
     public TriggerState State { get; set; }
 
+    /// <summary>
+    /// start_time
+    /// </summary>
     [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
     public DateTime StartTime { get; set; }
 
+    /// <summary>
+    /// end_time
+    /// </summary>
+    [BsonIgnoreIfNull]
     [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
     public DateTime? EndTime { get; set; }
 
-    public string CalendarName { get; set; }
+    /// <summary>
+    /// calendar_name
+    /// </summary>
+    [BsonIgnoreIfNull]
+    public string? CalendarName { get; set; }
 
+    /// <summary>
+    /// misfire_instr
+    /// </summary>
     public int MisfireInstruction { get; set; }
 
+    /// <summary>
+    /// priority
+    /// </summary>
     public int Priority { get; set; }
 
-    public string Type { get; set; }
 
-    public JobDataMap JobDataMap { get; set; }
+    /// <summary>
+    /// job_data
+    /// </summary>
+    public required JobDataMap JobDataMap { get; set; }
+
+    /// <summary>
+    /// job_name, job_group
+    /// </summary>
+    public required JobKey JobKey { get; set; }
 
 
     protected Trigger()
     {
     }
 
+    [SetsRequiredMembers]
     protected Trigger(ITrigger trigger, TriggerState state, string instanceName)
     {
-        Id = new TriggerId
-        {
-            InstanceName = instanceName,
-            Group = trigger.Key.Group,
-            Name = trigger.Key.Name,
-        };
+        InstanceName = instanceName;
+        Group = trigger.Key.Group;
+        Name = trigger.Key.Name;
+
+
         JobKey = trigger.JobKey;
         Description = trigger.Description;
         NextFireTime = trigger.GetNextFireTimeUtc()?.UtcDateTime;
@@ -90,20 +151,27 @@ internal abstract class Trigger
         JobDataMap = trigger.JobDataMap;
     }
 
-    public abstract ITrigger GetTrigger();
+    public abstract IOperableTrigger GetTrigger();
 
     protected void FillTrigger(AbstractTrigger trigger)
     {
-        trigger.Key = new TriggerKey(Id.Name, Id.Group);
+        trigger.Key = new TriggerKey(Name, Group);
         trigger.JobKey = JobKey;
         trigger.CalendarName = CalendarName;
         trigger.Description = Description;
         trigger.JobDataMap = JobDataMap;
         trigger.MisfireInstruction = MisfireInstruction;
-        trigger.EndTimeUtc = EndTime;
-        trigger.StartTimeUtc = StartTime;
         trigger.Priority = Priority;
+
+        trigger.StartTimeUtc = StartTime;
+        trigger.EndTimeUtc = EndTime; // EndTimeUtc validates with StartTimeUtc
+
         trigger.SetNextFireTimeUtc(NextFireTime);
         trigger.SetPreviousFireTimeUtc(PreviousFireTime);
+    }
+
+    public TriggerKey GetTriggerKey()
+    {
+        return new TriggerKey(Name, Group);
     }
 }

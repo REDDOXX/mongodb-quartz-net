@@ -1,48 +1,83 @@
 using MongoDB.Driver;
 
 using Quartz.Spi.MongoJobStore.Models;
-using Quartz.Spi.MongoJobStore.Models.Id;
 
 namespace Quartz.Spi.MongoJobStore.Repositories;
 
-[CollectionName("calendars")]
 internal class CalendarRepository : BaseRepository<Calendar>
 {
     public CalendarRepository(IMongoDatabase database, string instanceName, string? collectionPrefix = null)
-        : base(database, instanceName, collectionPrefix)
+        : base(database, "calendars", instanceName, collectionPrefix)
     {
+    }
+
+    public override async Task EnsureIndex()
+    {
+        await Collection.Indexes.CreateOneAsync(
+            new CreateIndexModel<Calendar>(
+                Builders<Calendar>.IndexKeys.Combine(
+                    Builders<Calendar>.IndexKeys.Ascending(x => x.InstanceName),
+                    Builders<Calendar>.IndexKeys.Ascending(x => x.CalendarName)
+                ),
+                new CreateIndexOptions
+                {
+                    Unique = true,
+                }
+            )
+        );
     }
 
     public async Task<bool> CalendarExists(string calendarName)
     {
-        var filter = Builders<Calendar>.Filter.Eq(x => x.Id, new CalendarId(calendarName, InstanceName));
+        // SELECT 1 FROM CALENDARS WHERE SCHED_NAME = @schedulerName AND CALENDAR_NAME = @calendarName
+
+        var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) &
+                     FilterBuilder.Eq(x => x.CalendarName, calendarName);
 
         return await Collection
-            .Find(FilterBuilder.Where(calendar => calendar.Id == new CalendarId(calendarName, InstanceName)))
+            //
+            .Find(filter)
             .AnyAsync()
             .ConfigureAwait(false);
     }
 
-    public async Task<Calendar?> GetCalendar(string calendarName)
+    public async Task<ICalendar?> GetCalendar(string calendarName)
     {
-        return await Collection.Find(calendar => calendar.Id == new CalendarId(calendarName, InstanceName))
+        // SELECT CALENDAR FROM CALENDARS WHERE SCHED_NAME = @schedulerName AND CALENDAR_NAME = @calendarName
+
+        var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) &
+                     FilterBuilder.Eq(x => x.CalendarName, calendarName);
+
+        var result = await Collection
+            // 
+            .Find(filter)
             .FirstOrDefaultAsync()
             .ConfigureAwait(false);
+
+        return result?.GetCalendar();
     }
 
     public async Task<List<string>> GetCalendarNames()
     {
-        return await Collection.Distinct(
-                calendar => calendar.Id.CalendarName,
-                calendar => calendar.Id.InstanceName == InstanceName
-            )
+        // SELECT CALENDAR_NAME FROM CALENDARS WHERE SCHED_NAME = @schedulerName
+
+        var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName);
+
+        return await Collection
+            //
+            .Distinct(calendar => calendar.CalendarName, filter)
             .ToListAsync()
             .ConfigureAwait(false);
     }
 
     public async Task<long> GetCount()
     {
-        return await Collection.Find(calendar => calendar.Id.InstanceName == InstanceName)
+        // SELECT COUNT(CALENDAR_NAME)  FROM CALENDARS WHERE SCHED_NAME = @schedulerName
+        var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName);
+
+        return await Collection
+            //
+            .Find(filter)
             .CountDocumentsAsync()
             .ConfigureAwait(false);
     }
@@ -54,15 +89,31 @@ internal class CalendarRepository : BaseRepository<Calendar>
 
     public async Task<long> UpdateCalendar(Calendar calendar)
     {
-        var result = await Collection.ReplaceOneAsync(cal => cal.Id == calendar.Id, calendar).ConfigureAwait(false);
+        // UPDATE CALENDARS
+        // SET CALENDAR = @calendar
+        // WHERE SCHED_NAME = @schedulerName AND CALENDAR_NAME = @calendarName
+
+        var filter = FilterBuilder.Eq(x => x.InstanceName, calendar.InstanceName) &
+                     FilterBuilder.Eq(x => x.CalendarName, calendar.CalendarName);
+
+        var update = UpdateBuilder.Set(x => x.Content, calendar.Content);
+
+        var result = await Collection.UpdateOneAsync(filter, update).ConfigureAwait(false);
         return result.MatchedCount;
     }
 
     public async Task<long> DeleteCalendar(string calendarName)
     {
+        // DELETE FROM CALENDARS WHERE SCHED_NAME = @schedulerName AND CALENDAR_NAME = @calendarName
+
+        var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) &
+                     FilterBuilder.Eq(x => x.CalendarName, calendarName);
+
         var result = await Collection
-            .DeleteOneAsync(calendar => calendar.Id == new CalendarId(calendarName, InstanceName))
+            //
+            .DeleteOneAsync(filter)
             .ConfigureAwait(false);
+
         return result.DeletedCount;
     }
 }

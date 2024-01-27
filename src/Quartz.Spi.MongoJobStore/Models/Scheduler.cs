@@ -1,25 +1,49 @@
+using System.Diagnostics.CodeAnalysis;
+
+using JetBrains.Annotations;
+
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 
-using Quartz.Spi.MongoJobStore.Models.Id;
-
 namespace Quartz.Spi.MongoJobStore.Models;
 
-internal enum SchedulerState
-{
-    Started,
-    Running,
-    Paused,
-    Resumed,
-}
-
+[UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
 internal class Scheduler
 {
     [BsonId]
-    public SchedulerId Id { get; set; }
+    public ObjectId Id { get; set; }
 
-    [BsonRepresentation(BsonType.String)]
-    public SchedulerState State { get; set; }
+    /// <summary>
+    /// sched_name
+    /// </summary>
+    [BsonRequired]
+    public required string SchedulerName { get; set; }
 
-    public DateTime? LastCheckIn { get; set; }
+    /// <summary>
+    /// instance_name
+    /// </summary>
+    [BsonRequired]
+    public required string InstanceId { get; set; }
+
+    /// <summary>
+    /// last_checkin_time
+    /// </summary>
+    public DateTimeOffset LastCheckIn { get; set; }
+
+    /// <summary>
+    /// checkin_interval
+    /// </summary>
+    public TimeSpan CheckInInterval { get; set; }
+
+
+    public Scheduler()
+    {
+    }
+
+    [SetsRequiredMembers]
+    public Scheduler(string schedulerName, string instanceId)
+    {
+        SchedulerName = schedulerName;
+        InstanceId = instanceId;
+    }
 }

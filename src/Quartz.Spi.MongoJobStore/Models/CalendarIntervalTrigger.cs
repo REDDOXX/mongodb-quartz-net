@@ -1,3 +1,6 @@
+using System.Diagnostics.CodeAnalysis;
+using System.Security.Cryptography;
+
 using JetBrains.Annotations;
 
 using MongoDB.Bson;
@@ -17,7 +20,7 @@ internal class CalendarIntervalTrigger : Trigger
 
     public int TimesTriggered { get; set; }
 
-    public string TimeZone { get; set; }
+    public required string TimeZone { get; set; }
 
     public bool PreserveHourOfDayAcrossDaylightSavings { get; set; }
 
@@ -28,6 +31,7 @@ internal class CalendarIntervalTrigger : Trigger
     {
     }
 
+    [SetsRequiredMembers]
     public CalendarIntervalTrigger(ICalendarIntervalTrigger trigger, TriggerState state, string instanceName)
         : base(trigger, state, instanceName)
     {
@@ -39,7 +43,7 @@ internal class CalendarIntervalTrigger : Trigger
         SkipDayIfHourDoesNotExist = trigger.SkipDayIfHourDoesNotExist;
     }
 
-    public override ITrigger GetTrigger()
+    public override IOperableTrigger GetTrigger()
     {
         var trigger = new CalendarIntervalTriggerImpl
         {

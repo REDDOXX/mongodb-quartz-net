@@ -3,10 +3,9 @@ using MongoDB.Bson.Serialization;
 using MongoDB.Bson.Serialization.Serializers;
 
 using Quartz.Spi.MongoJobStore.Models;
-using Quartz.Spi.MongoJobStore.Serializers;
 using Quartz.Util;
 
-namespace Quartz.Spi.MongoJobStore.Repositories;
+namespace Quartz.Spi.MongoJobStore.Serializers;
 
 internal static class JobStoreClassMap
 {
@@ -19,8 +18,10 @@ internal static class JobStoreClassMap
             map =>
             {
                 map.AutoMap();
+
                 map.MapProperty(key => key.Group);
                 map.MapProperty(key => key.Name);
+
                 map.AddKnownType(typeof(JobKey));
             }
         );
@@ -28,8 +29,10 @@ internal static class JobStoreClassMap
             map =>
             {
                 map.AutoMap();
+
                 map.MapProperty(key => key.Group);
                 map.MapProperty(key => key.Name);
+
                 map.AddKnownType(typeof(TriggerKey));
             }
         );
@@ -48,13 +51,16 @@ internal static class JobStoreClassMap
                 map.MapCreator(triggerKey => new TriggerKey(triggerKey.Name, triggerKey.Group));
             }
         );
+
         BsonClassMap.RegisterClassMap<TimeOfDay>(
             map =>
             {
                 map.AutoMap();
+
                 map.MapProperty(day => day.Hour);
                 map.MapProperty(day => day.Minute);
                 map.MapProperty(day => day.Second);
+
                 map.MapCreator(day => new TimeOfDay(day.Hour, day.Minute, day.Second));
                 map.MapCreator(day => new TimeOfDay(day.Hour, day.Minute));
             }
@@ -72,11 +78,13 @@ internal static class JobStoreClassMap
             map =>
             {
                 map.AutoMap();
-                var serializer =
-                    new EnumerableInterfaceImplementerSerializer<HashSet<DayOfWeek>, DayOfWeek>(
-                        new EnumSerializer<DayOfWeek>(BsonType.String)
+
+                map.MapProperty(trigger => trigger.DaysOfWeek)
+                    .SetSerializer(
+                        new EnumerableInterfaceImplementerSerializer<HashSet<DayOfWeek>, DayOfWeek>(
+                            new EnumSerializer<DayOfWeek>(BsonType.String)
+                        )
                     );
-                map.MapProperty(trigger => trigger.DaysOfWeek).SetSerializer(serializer);
             }
         );
     }

@@ -26,7 +26,6 @@ public class MongoDbJobStoreTests : BaseStoreTests, IDisposable
         GC.SuppressFinalize(this);
     }
 
-
     [Fact]
     public async Task AddJobTest()
     {
@@ -119,7 +118,7 @@ public class MongoDbJobStoreTests : BaseStoreTests, IDisposable
         s.Equals(TriggerState.Normal).Should().BeTrue("State of trigger t2 expected to be NORMAL ");
 
         var pausedGroups = await _scheduler.GetPausedTriggerGroups();
-        (pausedGroups).Should().BeEmpty("Size of paused trigger groups list expected to be 0 ");
+        pausedGroups.Should().BeEmpty("Size of paused trigger groups list expected to be 0 ");
 
         await _scheduler.PauseTriggers(GroupMatcher<TriggerKey>.GroupEquals("g1"));
 
@@ -150,7 +149,7 @@ public class MongoDbJobStoreTests : BaseStoreTests, IDisposable
         s = await _scheduler.GetTriggerState(new TriggerKey("t4", "g1"));
         s.Equals(TriggerState.Normal).Should().BeTrue("State of trigger t4 expected to be NORMAL ");
         pausedGroups = await _scheduler.GetPausedTriggerGroups();
-        (pausedGroups).Should().BeEmpty("Size of paused trigger groups list expected to be 0 ");
+        pausedGroups.Should().BeEmpty("Size of paused trigger groups list expected to be 0 ");
     }
 
     [Fact]
@@ -179,7 +178,7 @@ public class MongoDbJobStoreTests : BaseStoreTests, IDisposable
 
         jobKeys.Count.Should().Be(1, "Number of jobs expected in default group was 1 ");
         // job should have been left in place, because it is non-durable
-        (triggerKeys).Should().BeEmpty("Number of triggers expected in default group was 0 ");
+        triggerKeys.Should().BeEmpty("Number of triggers expected in default group was 0 ");
     }
 
     [Fact]
@@ -195,7 +194,7 @@ public class MongoDbJobStoreTests : BaseStoreTests, IDisposable
         await _scheduler.ScheduleJob(job, trigger1);
 
         job = await _scheduler.GetJobDetail(job.Key);
-        job.Should().NotBeNull();
+        Assert.NotNull(job);
 
         var trigger2 = TriggerBuilder.Create()
             .ForJob(job)
@@ -204,7 +203,7 @@ public class MongoDbJobStoreTests : BaseStoreTests, IDisposable
             .Build();
         await _scheduler.RescheduleJob(trigger1.Key, trigger2);
         job = await _scheduler.GetJobDetail(job.Key);
-        job.Should().NotBeNull();
+        Assert.NotNull(job);
     }
 
     [Fact]
@@ -314,7 +313,7 @@ public class MongoDbJobStoreTests : BaseStoreTests, IDisposable
             .WithSimpleSchedule(x => x.WithIntervalInSeconds(1).RepeatForever())
             .Build();
 
-        var triggersForJob = (IReadOnlyCollection<ITrigger>)new HashSet<ITrigger>
+        var triggersForJob = new HashSet<ITrigger>
         {
             trigger1,
             trigger2,
@@ -324,8 +323,8 @@ public class MongoDbJobStoreTests : BaseStoreTests, IDisposable
 
         var triggersOfJob = await _scheduler.GetTriggersOfJob(job.Key);
         triggersOfJob.Count.Should().Be(2);
-        (triggersOfJob.Contains(trigger1)).Should().BeTrue();
-        (triggersOfJob.Contains(trigger2)).Should().BeTrue();
+        triggersOfJob.Contains(trigger1).Should().BeTrue();
+        triggersOfJob.Contains(trigger2).Should().BeTrue();
 
         await _scheduler.Shutdown(false);
     }
@@ -373,15 +372,17 @@ public class MongoDbJobStoreTests : BaseStoreTests, IDisposable
             _scheduler.Context.Put(Barrier, barrier);
             _scheduler.Context.Put(DateStamps, jobExecTimestamps);
             await _scheduler.Start();
+
             var jobName = Guid.NewGuid().ToString();
             await _scheduler.AddJob(
                 JobBuilder.Create<SimpleJobWithSync>().WithIdentity(jobName).StoreDurably().Build(),
                 false
             );
+
             await _scheduler.ScheduleJob(TriggerBuilder.Create().ForJob(jobName).StartNow().Build());
             while ((await _scheduler.GetCurrentlyExecutingJobs()).Count == 0)
             {
-                Thread.Sleep(50);
+                await Task.Delay(50);
             }
         }
         finally
@@ -411,37 +412,42 @@ public class MongoDbJobStoreTests : BaseStoreTests, IDisposable
             await _scheduler.ScheduleJob(TriggerBuilder.Create().ForJob(jobName).StartNow().Build());
             while ((await _scheduler.GetCurrentlyExecutingJobs()).Count == 0)
             {
-                Thread.Sleep(50);
+                await Task.Delay(50);
             }
         }
-        finally
+        catch
         {
-            var task = Task.Run(
-                async () =>
-                {
-                    try
-                    {
-                        await _scheduler.Shutdown(true);
-                        shutdown = true;
-                    }
-                    catch (SchedulerException ex)
-                    {
-                        throw new Exception("exception: " + ex.Message, ex);
-                    }
-                }
-            );
-            Thread.Sleep(1000);
-            shutdown.Should().BeFalse();
-            barrier.SignalAndWait(TestTimeout);
-            task.Wait();
+            // Ignored
         }
+
+        var task = Task.Run(
+            async () =>
+            {
+                try
+                {
+                    await _scheduler.Shutdown(true);
+                    shutdown = true;
+                }
+                catch (SchedulerException ex)
+                {
+                    throw new Exception("exception: " + ex.Message, ex);
+                }
+            }
+        );
+
+        await Task.Delay(1000);
+
+        shutdown.Should().BeFalse();
+        barrier.SignalAndWait(TestTimeout);
+        await task;
     }
 
     [Fact]
     public async Task SmokeTest()
     {
-        await new SmokeTestPerformer().Test(_scheduler, true, true);
+        await SmokeTestPerformer.Test(_scheduler, true, true);
     }
+
 
     private async Task CreateJobsAndTriggers()
     {

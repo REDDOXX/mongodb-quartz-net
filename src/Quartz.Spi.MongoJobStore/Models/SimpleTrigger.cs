@@ -1,7 +1,12 @@
+using System.Diagnostics.CodeAnalysis;
+
+using JetBrains.Annotations;
+
 using Quartz.Impl.Triggers;
 
 namespace Quartz.Spi.MongoJobStore.Models;
 
+[UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
 internal class SimpleTrigger : Trigger
 {
     public int RepeatCount { get; set; }
@@ -15,6 +20,7 @@ internal class SimpleTrigger : Trigger
     {
     }
 
+    [SetsRequiredMembers]
     public SimpleTrigger(ISimpleTrigger trigger, TriggerState state, string instanceName)
         : base(trigger, state, instanceName)
     {
@@ -23,7 +29,7 @@ internal class SimpleTrigger : Trigger
         TimesTriggered = trigger.TimesTriggered;
     }
 
-    public override ITrigger GetTrigger()
+    public override IOperableTrigger GetTrigger()
     {
         var trigger = new SimpleTriggerImpl
         {

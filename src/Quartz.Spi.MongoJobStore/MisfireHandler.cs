@@ -1,4 +1,4 @@
-using Common.Logging;
+using System.Diagnostics;
 
 using Microsoft.Extensions.Logging;
 
@@ -9,87 +9,87 @@ namespace Quartz.Spi.MongoJobStore;
 
 internal class MisfireHandler
 {
-    private static readonly ILogger Log = LogProvider.CreateLogger<MisfireHandler>();
-
-    private readonly Thread _thread;
+    private readonly ILogger _logger = LogProvider.CreateLogger<MisfireHandler>();
 
     private readonly MongoDbJobStore _jobStore;
-    private bool _shutdown;
     private int _numFails;
+
+    private readonly CancellationTokenSource _cancellationTokenSource = new();
+    private Task? _task;
 
 
     public MisfireHandler(MongoDbJobStore jobStore)
     {
         _jobStore = jobStore;
+    }
 
-        _thread = new Thread(Run)
+    public async Task Initialize(CancellationToken cancellationToken = default)
+    {
+        _task = await Task.Factory.StartNew(
+            () => Run(_cancellationTokenSource.Token),
+            cancellationToken,
+            TaskCreationOptions.LongRunning,
+            TaskScheduler.Default
+        );
+    }
+
+    public async Task Shutdown()
+    {
+        Debug.Assert(_task != null);
+
+        await _cancellationTokenSource.CancelAsync();
+
+        try
         {
-            Name = $"QuartzScheduler_{jobStore.InstanceName}-{jobStore.InstanceId}_MisfireHandler",
-            IsBackground = true,
-        };
-    }
-
-    public void Shutdown()
-    {
-        _shutdown = true;
-        _thread.Interrupt();
-    }
-
-    public void Start()
-    {
-        _thread.Start();
-    }
-
-    public void Join()
-    {
-        _thread.Join();
-    }
-
-    private void Run()
-    {
-        while (!_shutdown)
+            await _task.ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
         {
+        }
+    }
+
+    private async Task Run(CancellationToken cancellationToken)
+    {
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
             var now = DateTime.UtcNow;
-            var recoverResult = Manage();
+
+            var recoverResult = await Manage().ConfigureAwait(false);
             if (recoverResult.ProcessedMisfiredTriggerCount > 0)
             {
                 _jobStore.SignalSchedulingChangeImmediately(recoverResult.EarliestNewTime);
             }
 
-            if (!_shutdown)
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var timeToSleep = TimeSpan.FromMilliseconds(50); // At least a short pause to help balance threads
+            if (!recoverResult.HasMoreMisfiredTriggers)
             {
-                var timeToSleep = TimeSpan.FromMilliseconds(50);
-                if (!recoverResult.HasMoreMisfiredTriggers)
+                timeToSleep = _jobStore.MisfireThreshold - (DateTime.UtcNow - now);
+                if (timeToSleep <= TimeSpan.Zero)
                 {
-                    timeToSleep = _jobStore.MisfireThreshold - (DateTime.UtcNow - now);
-                    if (timeToSleep <= TimeSpan.Zero)
-                    {
-                        timeToSleep = TimeSpan.FromMilliseconds(50);
-                    }
-
-                    if (_numFails > 0)
-                    {
-                        timeToSleep = _jobStore.DbRetryInterval > timeToSleep ? _jobStore.DbRetryInterval : timeToSleep;
-                    }
+                    timeToSleep = TimeSpan.FromMilliseconds(50);
                 }
 
-                try
+                if (_numFails > 0)
                 {
-                    Thread.Sleep(timeToSleep);
-                }
-                catch (ThreadInterruptedException)
-                {
+                    timeToSleep = _jobStore.DbRetryInterval > timeToSleep ? _jobStore.DbRetryInterval : timeToSleep;
                 }
             }
+
+            await Task.Delay(timeToSleep, cancellationToken).ConfigureAwait(false);
         }
     }
 
-    private RecoverMisfiredJobsResult Manage()
+    private async Task<RecoverMisfiredJobsResult> Manage()
     {
         try
         {
-            Log.LogDebug("Scanning for misfires...");
-            var result = _jobStore.DoRecoverMisfires().Result;
+            _logger.LogDebug("Scanning for misfires...");
+
+            var result = await _jobStore.DoRecoverMisfires().ConfigureAwait(false);
             _numFails = 0;
             return result;
         }
@@ -97,7 +97,7 @@ internal class MisfireHandler
         {
             if (_numFails % _jobStore.RetryableActionErrorLogThreshold == 0)
             {
-                Log.LogError(ex, $"Error handling misfires: {ex.Message}", ex);
+                _logger.LogError(ex, "Error handling misfires: {Message}", ex.Message);
             }
 
             _numFails++;

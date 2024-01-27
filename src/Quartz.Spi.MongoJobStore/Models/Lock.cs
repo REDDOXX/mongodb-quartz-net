@@ -1,24 +1,40 @@
-using MongoDB.Bson.Serialization.Attributes;
+using JetBrains.Annotations;
 
-using Quartz.Spi.MongoJobStore.Models.Id;
+using MongoDB.Bson;
+using MongoDB.Bson.Serialization.Attributes;
 
 namespace Quartz.Spi.MongoJobStore.Models;
 
 internal enum LockType
 {
+    /// <summary>
+    /// Use TRIGGER_ACCESS database locking
+    /// </summary>
     TriggerAccess,
+
     StateAccess,
 }
 
+[UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
 internal class Lock
 {
-    public const string TriggerAccess = "TRIGGER_ACCESS";
-    public const string StateAccess = "STATE_ACCESS";
-
     [BsonId]
-    public LockId Id { get; set; }
+    public ObjectId Id { get; set; }
 
-    public string InstanceId { get; set; }
+    /// <summary>
+    /// SCHED_NAME
+    /// </summary>
+    [BsonRequired]
+    public required string InstanceName { get; init; }
 
+    /// <summary>
+    /// LOCK_NAME
+    /// </summary>
+    [BsonRepresentation(BsonType.String)]
+    public LockType LockType { get; set; }
+
+    /// <summary>
+    /// Ttl for the lock document
+    /// </summary>
     public DateTime AcquiredAt { get; set; }
 }

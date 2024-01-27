@@ -1,4 +1,4 @@
-﻿namespace Quartz.Spi.MongoJobStore.Tests.Jobs;
+namespace Quartz.Spi.MongoJobStore.Tests.Jobs;
 
 public class SimpleJobWithSync : IJob
 {
@@ -16,7 +16,7 @@ public class SimpleJobWithSync : IJob
         catch (Exception e)
         {
             Console.Write(e);
-            throw e;
+            throw;
         }
 
         return Task.FromResult(0);

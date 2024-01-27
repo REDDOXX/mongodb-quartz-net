@@ -11,6 +11,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 	ProjectSection(SolutionItems) = preProject
 		.editorconfig = .editorconfig
 		Directory.Build.props = Directory.Build.props
+		global.json = global.json
 		LICENSE.txt = LICENSE.txt
 		README.md = README.md
 	EndProjectSection
@@ -21,6 +22,13 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{C02528EE-767
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{FC5D1CB6-7548-4A9C-B17F-0C2997753F1B}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".github", ".github", "{8388814E-DF18-4594-AE7F-30D1EAABDB4D}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "workflows", "workflows", "{56C8706D-4B8B-445B-9EAD-A39AAC841487}"
+	ProjectSection(SolutionItems) = preProject
+		.github\workflows\dotnet.yml = .github\workflows\dotnet.yml
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -43,6 +51,7 @@ Global
 	GlobalSection(NestedProjects) = preSolution
 		{E74E5823-4BC3-4BEC-A2D6-57FD0CF044E8} = {C02528EE-7671-44C3-97EF-ACB14B16D880}
 		{F7C8DDA0-E08B-4D03-BE83-44CDCF0AEA5A} = {FC5D1CB6-7548-4A9C-B17F-0C2997753F1B}
+		{56C8706D-4B8B-445B-9EAD-A39AAC841487} = {8388814E-DF18-4594-AE7F-30D1EAABDB4D}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {50C84C3E-FEA4-4EA1-8CB8-E3FF3D95DB27}

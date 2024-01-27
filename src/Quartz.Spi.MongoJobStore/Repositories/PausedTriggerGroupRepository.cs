@@ -3,39 +3,72 @@ using MongoDB.Driver;
 using Quartz.Impl.Matchers;
 using Quartz.Spi.MongoJobStore.Extensions;
 using Quartz.Spi.MongoJobStore.Models;
-using Quartz.Spi.MongoJobStore.Models.Id;
 
 namespace Quartz.Spi.MongoJobStore.Repositories;
 
-[CollectionName("pausedTriggerGroups")]
 internal class PausedTriggerGroupRepository : BaseRepository<PausedTriggerGroup>
 {
     public PausedTriggerGroupRepository(IMongoDatabase database, string instanceName, string? collectionPrefix = null)
-        : base(database, instanceName, collectionPrefix)
+        : base(database, "pausedTriggerGroups", instanceName, collectionPrefix)
     {
     }
 
+    public override async Task EnsureIndex()
+    {
+        // PRIMARY KEY (sched_name,trigger_group)
+        await Collection.Indexes.CreateOneAsync(
+            new CreateIndexModel<PausedTriggerGroup>(
+                IndexBuilder.Combine(
+                    //
+                    IndexBuilder.Ascending(x => x.InstanceName),
+                    IndexBuilder.Ascending(x => x.Group)
+                ),
+                new CreateIndexOptions
+                {
+                    Unique = true,
+                }
+            )
+        );
+    }
+
+
+    /// <summary>
+    /// Selects the paused trigger groups.
+    /// </summary>
+    /// <returns></returns>
     public async Task<List<string>> GetPausedTriggerGroups()
     {
-        return await Collection.Find(group => group.Id.InstanceName == InstanceName)
-            .Project(group => group.Id.Group)
+        // SELECT TRIGGER_GROUP FROM PAUSED_TRIGGER_GRPS WHERE SCHED_NAME = @schedulerName
+
+        return await Collection
+            //
+            .Find(group => group.InstanceName == InstanceName)
+            .Project(group => group.Group)
             .ToListAsync()
             .ConfigureAwait(false);
     }
 
     public async Task<bool> IsTriggerGroupPaused(string group)
     {
-        return await Collection.Find(g => g.Id == new PausedTriggerGroupId(group, InstanceName))
+        // SELECT TRIGGER_GROUP FROM PAUSED_TRIGGER_GRPS WHERE SCHED_NAME = @schedulerName AND TRIGGER_GROUP = @triggerGroup
+        var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) & //
+                     FilterBuilder.Eq(x => x.Group, group);
+
+        return await Collection
+            //
+            .Find(filter)
             .AnyAsync()
             .ConfigureAwait(false);
     }
 
     public async Task AddPausedTriggerGroup(string group)
     {
+        // INSERT INTO PAUSED_TRIGGER_GRPS (SCHED_NAME, TRIGGER_GROUP) VALUES (@schedulerName, @triggerGroup)
         await Collection.InsertOneAsync(
                 new PausedTriggerGroup
                 {
-                    Id = new PausedTriggerGroupId(group, InstanceName),
+                    InstanceName = InstanceName,
+                    Group = group,
                 }
             )
             .ConfigureAwait(false);
@@ -43,15 +76,19 @@ internal class PausedTriggerGroupRepository : BaseRepository<PausedTriggerGroup>
 
     public async Task DeletePausedTriggerGroup(GroupMatcher<TriggerKey> matcher)
     {
-        var regex = matcher.ToBsonRegularExpression().ToRegex();
-        await Collection
-            .DeleteManyAsync(group => group.Id.InstanceName == InstanceName && regex.IsMatch(group.Id.Group))
-            .ConfigureAwait(false);
+        // DELETE FROM PAUSED_TRIGGER_GRPS WHERE SCHED_NAME = @schedulerName AND TRIGGER_GROUP LIKE @triggerGroup
+        var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) &
+                     FilterBuilder.Regex(x => x.Group, matcher.ToBsonRegularExpression());
+
+        await Collection.DeleteManyAsync(filter).ConfigureAwait(false);
     }
 
     public async Task DeletePausedTriggerGroup(string groupName)
     {
-        await Collection.DeleteOneAsync(group => group.Id == new PausedTriggerGroupId(groupName, InstanceName))
-            .ConfigureAwait(false);
+        // DELETE FROM PAUSED_TRIGGER_GRPS WHERE SCHED_NAME = @schedulerName AND TRIGGER_GROUP LIKE @triggerGroup
+        var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) & // 
+                     FilterBuilder.Eq(x => x.Group, groupName);
+
+        await Collection.DeleteOneAsync(filter).ConfigureAwait(false);
     }
 }

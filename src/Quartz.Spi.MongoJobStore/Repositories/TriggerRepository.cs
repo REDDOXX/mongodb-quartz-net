@@ -1,114 +1,238 @@
+using MongoDB.Bson.Serialization;
+using MongoDB.Bson.Serialization.Serializers;
 using MongoDB.Driver;
 
 using Quartz.Impl.Matchers;
 using Quartz.Spi.MongoJobStore.Extensions;
 using Quartz.Spi.MongoJobStore.Models;
-using Quartz.Spi.MongoJobStore.Models.Id;
 
 namespace Quartz.Spi.MongoJobStore.Repositories;
 
-[CollectionName("triggers")]
 internal class TriggerRepository : BaseRepository<Trigger>
 {
     public TriggerRepository(IMongoDatabase database, string instanceName, string? collectionPrefix = null)
-        : base(database, instanceName, collectionPrefix)
+        : base(database, "triggers", instanceName, collectionPrefix)
     {
+    }
+
+    public override async Task EnsureIndex()
+    {
+        await Collection.Indexes.CreateOneAsync(
+            new CreateIndexModel<Trigger>(
+                IndexBuilder.Combine(
+                    IndexBuilder.Ascending(x => x.InstanceName),
+                    IndexBuilder.Ascending(x => x.Name),
+                    IndexBuilder.Ascending(x => x.Group)
+                ),
+                new CreateIndexOptions
+                {
+                    Unique = true,
+                }
+            )
+        );
+
+        // create index idx_qrtz_t_next_fire_time on qrtz_triggers(next_fire_time);
+        await Collection.Indexes.CreateOneAsync(
+            new CreateIndexModel<Trigger>(IndexBuilder.Ascending(x => x.NextFireTime))
+        );
+
+        // create index idx_qrtz_t_state on qrtz_triggers(trigger_state);
+        await Collection.Indexes.CreateOneAsync(new CreateIndexModel<Trigger>(IndexBuilder.Ascending(x => x.State)));
+
+        // create index idx_qrtz_t_nft_st on qrtz_triggers(next_fire_time,trigger_state);
+        await Collection.Indexes.CreateOneAsync(
+            new CreateIndexModel<Trigger>(
+                IndexBuilder.Combine(IndexBuilder.Ascending(x => x.NextFireTime), IndexBuilder.Ascending(x => x.State))
+            )
+        );
     }
 
     public async Task<bool> TriggerExists(TriggerKey key)
     {
-        return await Collection.Find(trigger => trigger.Id == new TriggerId(key, InstanceName))
+        // SELECT 1 FROM TRIGGERS WHERE SCHED_NAME = @schedulerName AND TRIGGER_NAME = @triggerName AND TRIGGER_GROUP = @triggerGroup
+        var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) &
+                     FilterBuilder.Eq(x => x.Name, key.Name) &
+                     FilterBuilder.Eq(x => x.Group, key.Group);
+
+        return await Collection
+            //
+            .Find(filter)
             .AnyAsync()
             .ConfigureAwait(false);
     }
 
-    public async Task<bool> TriggersExists(string calendarName)
+    public async Task<bool> CalendarIsReferenced(string calendarName)
     {
+        // SELECT 1 FROM TRIGGERS WHERE SCHED_NAME = @schedulerName AND CALENDAR_NAME = @calendarName
+
+        var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) &
+                     FilterBuilder.Eq(x => x.CalendarName, calendarName);
+
         return await Collection
-            .Find(trigger => trigger.Id.InstanceName == InstanceName && trigger.CalendarName == calendarName)
+            //
+            .Find(filter)
             .AnyAsync()
             .ConfigureAwait(false);
     }
 
     public async Task<Trigger?> GetTrigger(TriggerKey key)
     {
-        return await Collection.Find(trigger => trigger.Id == new TriggerId(key, InstanceName))
+        /*
+            SELECT
+                JOB_NAME,
+                JOB_GROUP,
+                DESCRIPTION,
+                NEXT_FIRE_TIME,
+                PREV_FIRE_TIME,
+                TRIGGER_TYPE,
+                START_TIME,
+                END_TIME,
+                CALENDAR_NAME,
+                MISFIRE_INSTR,
+                PRIORITY,
+                JOB_DATA,
+                CRON_EXPRESSION,
+                TIME_ZONE_ID,
+                REPEAT_COUNT,
+                REPEAT_INTERVAL,
+                TIMES_TRIGGERED
+            FROM
+                TRIGGERS t
+            LEFT JOIN
+                SIMPLE_TRIGGERS st ON (st.SCHED_NAME = t.SCHED_NAME AND st.TRIGGER_GROUP = t.TRIGGER_GROUP AND st.TRIGGER_NAME = t.TRIGGER_NAME)
+            LEFT JOIN
+                CRON_TRIGGERS ct ON (ct.SCHED_NAME = t.SCHED_NAME AND ct.TRIGGER_GROUP = t.TRIGGER_GROUP AND ct.TRIGGER_NAME = t.TRIGGER_NAME)
+            WHERE
+                t.SCHED_NAME = @schedulerName AND t.TRIGGER_NAME = @triggerName AND t.TRIGGER_GROUP = @triggerGroup";
+
+        */
+
+        var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) &
+                     FilterBuilder.Eq(x => x.Name, key.Name) &
+                     FilterBuilder.Eq(x => x.Group, key.Group);
+
+        return await Collection
+            //
+            .Find(filter)
             .FirstOrDefaultAsync()
             .ConfigureAwait(false);
     }
 
-    public async Task<Models.TriggerState> GetTriggerState(TriggerKey triggerKey)
+    public async Task<Models.TriggerState> GetTriggerState(TriggerKey key)
     {
-        return await Collection.Find(trigger => trigger.Id == new TriggerId(triggerKey, InstanceName))
+        var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) &
+                     FilterBuilder.Eq(x => x.Name, key.Name) &
+                     FilterBuilder.Eq(x => x.Group, key.Group);
+
+        return await Collection.Find(filter)
             .Project(trigger => trigger.State)
             .FirstOrDefaultAsync()
             .ConfigureAwait(false);
     }
 
-    public async Task<JobDataMap> GetTriggerJobDataMap(TriggerKey triggerKey)
+    public async Task<JobDataMap> GetTriggerJobDataMap(TriggerKey key)
     {
-        return await Collection.Find(trigger => trigger.Id == new TriggerId(triggerKey, InstanceName))
+        // SELECT JOB_DATA FROM TRIGGERS WHERE SCHED_NAME = @schedulerName AND TRIGGER_NAME = @triggerName AND TRIGGER_GROUP = @triggerGroup
+
+        var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) &
+                     FilterBuilder.Eq(x => x.Name, key.Name) &
+                     FilterBuilder.Eq(x => x.Group, key.Group);
+
+        return await Collection.Find(filter)
             .Project(trigger => trigger.JobDataMap)
             .FirstOrDefaultAsync()
             .ConfigureAwait(false);
     }
 
-    public async Task<List<Trigger>> GetTriggers(string calendarName)
+    public async Task<List<Trigger>> SelectTriggersForCalendar(string calendarName)
     {
-        return await Collection.Find(FilterBuilder.Where(trigger => trigger.CalendarName == calendarName))
+        // SELECT TRIGGER_NAME, TRIGGER_GROUP FROM TRIGGERS WHERE SCHED_NAME = @schedulerName AND CALENDAR_NAME = @calendarName
+
+        var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) &
+                     FilterBuilder.Eq(x => x.CalendarName, calendarName);
+
+        return await Collection
+            //
+            .Find(filter)
             .ToListAsync()
             .ConfigureAwait(false);
     }
 
     public async Task<List<Trigger>> GetTriggers(JobKey jobKey)
     {
-        return await Collection.Find(trigger => trigger.Id.InstanceName == InstanceName && trigger.JobKey == jobKey)
+        // SELECT TRIGGER_NAME, TRIGGER_GROUP
+        // FROM TRIGGERS
+        // WHERE SCHED_NAME = @schedulerName AND JOB_NAME = @jobName AND JOB_GROUP = @jobGroup
+
+        var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) & //
+                     FilterBuilder.Eq(x => x.JobKey, jobKey);
+
+        return await Collection
+            //
+            .Find(filter)
             .ToListAsync()
             .ConfigureAwait(false);
     }
 
     public async Task<List<TriggerKey>> GetTriggerKeys(GroupMatcher<TriggerKey> matcher)
     {
-        var filter = FilterBuilder.And(
-            FilterBuilder.Eq(trigger => trigger.Id.InstanceName, InstanceName),
-            FilterBuilder.Regex(trigger => trigger.Id.Group, matcher.ToBsonRegularExpression())
-        );
+        // SELECT TRIGGER_NAME, TRIGGER_GROUP FROM {0}TRIGGERS WHERE SCHED_NAME = @schedulerName AND TRIGGER_GROUP = @triggerGroup
+        // SELECT TRIGGER_NAME, TRIGGER_GROUP FROM {0}TRIGGERS WHERE SCHED_NAME = @schedulerName AND TRIGGER_GROUP LIKE @triggerGroup
 
-        return await Collection
-            //
-            .Find(filter)
-            .Project(trigger => trigger.Id.GetTriggerKey())
+        var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) &
+                     FilterBuilder.Regex(x => x.Group, matcher.ToBsonRegularExpression());
+
+        return await Collection.Find(filter)
+            .Project(trigger => new TriggerKey(trigger.Name, trigger.Group))
             .ToListAsync()
             .ConfigureAwait(false);
     }
 
     public async Task<List<TriggerKey>> GetTriggerKeys(Models.TriggerState state)
     {
-        return await Collection.Find(trigger => trigger.Id.InstanceName == InstanceName && trigger.State == state)
-            .Project(trigger => trigger.Id.GetTriggerKey())
+        var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) & // 
+                     FilterBuilder.Eq(x => x.State, state);
+
+        return await Collection.Find(filter)
+            .Project(trigger => new TriggerKey(trigger.Name, trigger.Group))
             .ToListAsync()
             .ConfigureAwait(false);
     }
 
     public async Task<List<string>> GetTriggerGroupNames()
     {
+        // SELECT DISTINCT(TRIGGER_GROUP) FROM TRIGGERS WHERE SCHED_NAME = @schedulerName
+
+        var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName);
+
         return await Collection
-            .Distinct(trigger => trigger.Id.Group, trigger => trigger.Id.InstanceName == InstanceName)
+            //
+            .Distinct(trigger => trigger.Group, filter)
             .ToListAsync()
             .ConfigureAwait(false);
     }
 
     public async Task<List<string>> GetTriggerGroupNames(GroupMatcher<TriggerKey> matcher)
     {
-        var regex = matcher.ToBsonRegularExpression().ToRegex();
-        return await Collection.Distinct(
-                trigger => trigger.Id.Group,
-                trigger => trigger.Id.InstanceName == InstanceName && regex.IsMatch(trigger.Id.Group)
-            )
+        // SELECT DISTINCT(TRIGGER_GROUP) FROM TRIGGERS WHERE SCHED_NAME = @schedulerName AND TRIGGER_GROUP LIKE @triggerGroup
+        var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) &
+                     FilterBuilder.Regex(x => x.Group, matcher.ToBsonRegularExpression());
+
+        return await Collection
+            //
+            .Distinct(trigger => trigger.Group, filter)
             .ToListAsync()
             .ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Select the next trigger which will fire to fire between the two given timestamps 
+    /// in ascending order of fire time, and then descending by priority.
+    /// </summary>
+    /// <param name="noLaterThan"></param>
+    /// <param name="noEarlierThan"></param>
+    /// <param name="maxCount"></param>
+    /// <returns></returns>
     public async Task<List<TriggerKey>> GetTriggersToAcquire(
         DateTimeOffset noLaterThan,
         DateTimeOffset noEarlierThan,
@@ -117,57 +241,80 @@ internal class TriggerRepository : BaseRepository<Trigger>
     {
         if (maxCount < 1)
         {
+            // we want at least one trigger back.
             maxCount = 1;
         }
+
+        //  SELECT
+        //      t.TRIGGER_NAME, t.TRIGGER_GROUP, jd.JOB_CLASS_NAME
+        //  FROM
+        //      TRIGGERS t
+        //  JOIN
+        //      JOB_DETAILS jd ON (jd.SCHED_NAME = t.SCHED_NAME AND jd.JOB_GROUP = t.JOB_GROUP AND jd.JOB_NAME = t.JOB_NAME)
+        //  WHERE
+        //      t.SCHED_NAME = @schedulerName AND TRIGGER_STATE = @state AND NEXT_FIRE_TIME <= @noLaterThan AND (MISFIRE_INSTR = -1 OR (MISFIRE_INSTR <> -1 AND NEXT_FIRE_TIME >= @noEarlierThan))
+        //  ORDER BY
+        //      NEXT_FIRE_TIME ASC, PRIORITY DESC
 
         var noLaterThanDateTime = noLaterThan.UtcDateTime;
         var noEarlierThanDateTime = noEarlierThan.UtcDateTime;
 
-        return await Collection
-            .Find(
-                trigger => trigger.Id.InstanceName == InstanceName &&
-                           trigger.State == Models.TriggerState.Waiting &&
-                           trigger.NextFireTime <= noLaterThanDateTime &&
-                           (trigger.MisfireInstruction == -1 ||
-                            (trigger.MisfireInstruction != -1 && trigger.NextFireTime >= noEarlierThanDateTime))
-            )
-            .Sort(
-                SortBuilder.Combine(
-                    SortBuilder.Ascending(trigger => trigger.NextFireTime),
-                    SortBuilder.Descending(trigger => trigger.Priority)
-                )
-            )
+        var filter = FilterBuilder.Where(
+            x => x.InstanceName == InstanceName &&
+                 x.State == Models.TriggerState.Waiting &&
+                 x.NextFireTime <= noLaterThanDateTime &&
+                 (x.MisfireInstruction == -1 || (x.MisfireInstruction != -1 && x.NextFireTime >= noEarlierThanDateTime))
+        );
+
+        var sort = SortBuilder.Combine(
+            SortBuilder.Ascending(trigger => trigger.NextFireTime),
+            SortBuilder.Descending(trigger => trigger.Priority)
+        );
+
+        var t = Collection.Find(filter).Project(trigger => new TriggerKey(trigger.Name, trigger.Group));
+
+        return await Collection.Find(filter)
+            .Sort(sort)
             .Limit(maxCount)
-            .Project(trigger => trigger.Id.GetTriggerKey())
+            .Project(trigger => new TriggerKey(trigger.Name, trigger.Group))
             .ToListAsync()
             .ConfigureAwait(false);
     }
 
     public async Task<long> GetCount()
     {
-        return await Collection.Find(trigger => trigger.Id.InstanceName == InstanceName)
+        // SELECT COUNT(TRIGGER_NAME)  FROM TRIGGERS WHERE SCHED_NAME = @schedulerName
+        var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName);
+
+        return await Collection
+            //
+            .Find(filter)
             .CountDocumentsAsync()
             .ConfigureAwait(false);
     }
 
     public async Task<long> GetCount(JobKey jobKey)
     {
+        var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) & //
+                     FilterBuilder.Eq(x => x.JobKey, jobKey);
+
         return await Collection
-            .Find(FilterBuilder.Where(trigger => trigger.Id.InstanceName == InstanceName && trigger.JobKey == jobKey))
+            //
+            .Find(filter)
             .CountDocumentsAsync()
             .ConfigureAwait(false);
     }
 
     public async Task<long> GetMisfireCount(DateTime nextFireTime)
     {
-        return await Collection.Find(
-                trigger => trigger.Id.InstanceName == InstanceName &&
-                           trigger.MisfireInstruction != MisfireInstruction.IgnoreMisfirePolicy &&
-                           trigger.NextFireTime < nextFireTime &&
-                           trigger.State == Models.TriggerState.Waiting
-            )
-            .CountDocumentsAsync()
-            .ConfigureAwait(false);
+        var filter = FilterBuilder.Where(
+            x => x.InstanceName == InstanceName &&
+                 x.MisfireInstruction != MisfireInstruction.IgnoreMisfirePolicy &&
+                 x.NextFireTime < nextFireTime &&
+                 x.State == Models.TriggerState.Waiting
+        );
+
+        return await Collection.Find(filter).CountDocumentsAsync().ConfigureAwait(false);
     }
 
     public async Task AddTrigger(Trigger trigger)
@@ -177,18 +324,56 @@ internal class TriggerRepository : BaseRepository<Trigger>
 
     public async Task UpdateTrigger(Trigger trigger)
     {
-        await Collection.ReplaceOneAsync(t => t.Id == trigger.Id, trigger).ConfigureAwait(false);
+        // UPDATE TRIGGERS
+        // SET
+        //   JOB_NAME = @triggerJobName, 
+        //   JOB_GROUP = @triggerJobGroup, 
+        //   DESCRIPTION = @triggerDescription, 
+        //   NEXT_FIRE_TIME = @triggerNextFireTime, 
+        //   PREV_FIRE_TIME = @triggerPreviousFireTime,
+        //   TRIGGER_STATE = @triggerState, 
+        //   TRIGGER_TYPE = @triggerType, 
+        //   START_TIME = @triggerStartTime, 
+        //   END_TIME = @triggerEndTime, 
+        //   CALENDAR_NAME = @triggerCalendarName, 
+        //   MISFIRE_INSTR = @triggerMisfireInstruction, 
+        //   PRIORITY = @triggerPriority,
+        //   JOB_DATA = @triggerJobJobDataMap
+        // WHERE
+        //  SCHED_NAME = @schedulerName AND TRIGGER_NAME = @triggerName AND TRIGGER_GROUP = @triggerGroup";
+
+        var filter = FilterBuilder.Eq(x => x.InstanceName, trigger.InstanceName) &
+                     FilterBuilder.Eq(x => x.Name, trigger.Name) &
+                     FilterBuilder.Eq(x => x.Group, trigger.Group);
+
+        var update = UpdateBuilder
+            // 
+            .Set(x => x.JobKey, trigger.JobKey)
+            .Set(x => x.Description, trigger.Description)
+            .Set(x => x.NextFireTime, trigger.NextFireTime)
+            .Set(x => x.PreviousFireTime, trigger.PreviousFireTime)
+            .Set(x => x.State, trigger.State)
+            //.Set(x => x.Type, trigger.Type)
+            .Set(x => x.StartTime, trigger.StartTime)
+            .Set(x => x.EndTime, trigger.EndTime)
+            .Set(x => x.CalendarName, trigger.CalendarName)
+            .Set(x => x.MisfireInstruction, trigger.MisfireInstruction)
+            .Set(x => x.Priority, trigger.Priority)
+            .Set(x => x.JobDataMap, trigger.JobDataMap);
+
+        await Collection.UpdateOneAsync(filter, update).ConfigureAwait(false);
     }
 
     public async Task<long> UpdateTriggerState(TriggerKey triggerKey, Models.TriggerState state)
     {
+        // UPDATE TRIGGERS SET TRIGGER_STATE = @state WHERE SCHED_NAME = @schedulerName AND TRIGGER_NAME = @triggerName AND TRIGGER_GROUP = @triggerGroup
+        var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) &
+                     FilterBuilder.Eq(x => x.Name, triggerKey.Name) &
+                     FilterBuilder.Eq(x => x.Group, triggerKey.Group);
+
         var update = UpdateBuilder.Set(trigger => trigger.State, state);
 
-        var result = await Collection.UpdateOneAsync(
-                trigger => trigger.Id == new TriggerId(triggerKey, InstanceName),
-                update
-            )
-            .ConfigureAwait(false);
+        var result = await Collection.UpdateOneAsync(filter, update).ConfigureAwait(false);
         return result.ModifiedCount;
     }
 
@@ -198,13 +383,18 @@ internal class TriggerRepository : BaseRepository<Trigger>
         Models.TriggerState oldState
     )
     {
+        // UPDATE TRIGGERS
+        // SET TRIGGER_STATE = @newState
+        // WHERE SCHED_NAME = @schedulerName AND TRIGGER_NAME = @triggerName AND TRIGGER_GROUP = @triggerGroup AND TRIGGER_STATE = @oldState";
+
+        var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) &
+                     FilterBuilder.Eq(x => x.Name, triggerKey.Name) &
+                     FilterBuilder.Eq(x => x.Group, triggerKey.Group) &
+                     FilterBuilder.Eq(x => x.State, oldState);
+
         var update = UpdateBuilder.Set(trigger => trigger.State, newState);
 
-        var result = await Collection.UpdateOneAsync(
-                trigger => trigger.Id == new TriggerId(triggerKey, InstanceName) && trigger.State == oldState,
-                update
-            )
-            .ConfigureAwait(false);
+        var result = await Collection.UpdateOneAsync(filter, update).ConfigureAwait(false);
         return result.ModifiedCount;
     }
 
@@ -214,11 +404,9 @@ internal class TriggerRepository : BaseRepository<Trigger>
         params Models.TriggerState[] oldStates
     )
     {
-        var filter = FilterBuilder.And(
-            FilterBuilder.Eq(trigger => trigger.Id.InstanceName, InstanceName),
-            FilterBuilder.Regex(trigger => trigger.Id.Group, matcher.ToBsonRegularExpression()),
-            FilterBuilder.In(trigger => trigger.State, oldStates)
-        );
+        var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) &
+                     FilterBuilder.Regex(x => x.Group, matcher.ToBsonRegularExpression()) &
+                     FilterBuilder.In(x => x.State, oldStates);
 
         var update = UpdateBuilder.Set(trigger => trigger.State, newState);
 
@@ -232,45 +420,44 @@ internal class TriggerRepository : BaseRepository<Trigger>
         params Models.TriggerState[] oldStates
     )
     {
+        var filter = FilterBuilder.Where(
+            x => x.InstanceName == InstanceName && x.JobKey == jobKey && oldStates.Contains(x.State)
+        );
+
         var update = UpdateBuilder.Set(trigger => trigger.State, newState);
 
-        var result = await Collection.UpdateManyAsync(
-                trigger => trigger.Id.InstanceName == InstanceName &&
-                           trigger.JobKey == jobKey &&
-                           oldStates.Contains(trigger.State),
-                update
-            )
-            .ConfigureAwait(false);
+        var result = await Collection.UpdateManyAsync(filter, update).ConfigureAwait(false);
         return result.ModifiedCount;
     }
 
     public async Task<long> UpdateTriggersStates(JobKey jobKey, Models.TriggerState newState)
     {
+        var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) & //
+                     FilterBuilder.Eq(x => x.JobKey, jobKey);
+
         var update = UpdateBuilder.Set(trigger => trigger.State, newState);
 
-        var result = await Collection.UpdateManyAsync(
-                trigger => trigger.Id.InstanceName == InstanceName && trigger.JobKey == jobKey,
-                update
-            )
-            .ConfigureAwait(false);
+        var result = await Collection.UpdateManyAsync(filter, update).ConfigureAwait(false);
         return result.ModifiedCount;
     }
 
     public async Task<long> UpdateTriggersStates(Models.TriggerState newState, params Models.TriggerState[] oldStates)
     {
+        var filter = FilterBuilder.Where(x => x.InstanceName == InstanceName && oldStates.Contains(x.State));
+
         var update = UpdateBuilder.Set(trigger => trigger.State, newState);
 
-        var result = await Collection.UpdateManyAsync(
-                trigger => trigger.Id.InstanceName == InstanceName && oldStates.Contains(trigger.State),
-                update
-            )
-            .ConfigureAwait(false);
+        var result = await Collection.UpdateManyAsync(filter, update).ConfigureAwait(false);
         return result.ModifiedCount;
     }
 
     public async Task<long> DeleteTrigger(TriggerKey key)
     {
-        var filter = FilterBuilder.Where(trigger => trigger.Id == new TriggerId(key, InstanceName));
+        // DELETE FROM TRIGGERS WHERE SCHED_NAME = @schedulerName AND TRIGGER_NAME = @triggerName AND TRIGGER_GROUP = @triggerGroup
+
+        var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) &
+                     FilterBuilder.Eq(x => x.Name, key.Name) &
+                     FilterBuilder.Eq(x => x.Group, key.Group);
 
         var result = await Collection.DeleteOneAsync(filter).ConfigureAwait(false);
         return result.DeletedCount;
@@ -278,8 +465,12 @@ internal class TriggerRepository : BaseRepository<Trigger>
 
     public async Task<long> DeleteTriggers(JobKey jobKey)
     {
-        var filter =
-            FilterBuilder.Where(trigger => trigger.Id.InstanceName == InstanceName && trigger.JobKey == jobKey);
+        // SELECT TRIGGER_NAME, TRIGGER_GROUP FROM TRIGGERS WHERE SCHED_NAME = @schedulerName AND JOB_NAME = @jobName AND JOB_GROUP = @jobGroup
+
+        // DELETE FROM TRIGGERS WHERE SCHED_NAME = @schedulerName AND TRIGGER_NAME = @triggerName AND TRIGGER_GROUP = @triggerGroup
+
+        var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) & //
+                     FilterBuilder.Eq(x => x.JobKey, jobKey);
 
         var result = await Collection.DeleteManyAsync(filter).ConfigureAwait(false);
         return result.DeletedCount;
@@ -296,22 +487,31 @@ internal class TriggerRepository : BaseRepository<Trigger>
     /// <returns></returns>
     public bool HasMisfiredTriggers(DateTime nextFireTime, int maxResults, out List<TriggerKey> results)
     {
-        var cursor = Collection.Find(
-                trigger => trigger.Id.InstanceName == InstanceName &&
-                           trigger.MisfireInstruction != MisfireInstruction.IgnoreMisfirePolicy &&
-                           trigger.NextFireTime < nextFireTime &&
-                           trigger.State == Models.TriggerState.Waiting
-            )
-            .Project(trigger => trigger.Id.GetTriggerKey())
-            .Sort(
-                SortBuilder.Combine(
-                    SortBuilder.Ascending(trigger => trigger.NextFireTime),
-                    SortBuilder.Descending(trigger => trigger.Priority)
-                )
-            )
+        // SELECT TRIGGER_NAME, TRIGGER_GROUP
+        // FROM TRIGGERS
+        // WHERE SCHED_NAME = @schedulerName AND MISFIRE_INSTR <> -1 AND NEXT_FIRE_TIME < @nextFireTime AND TRIGGER_STATE = @state1
+        // ORDER BY NEXT_FIRE_TIME ASC, PRIORITY DESC
+
+        results = [];
+
+        var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) &
+                     FilterBuilder.Ne(x => x.MisfireInstruction, MisfireInstruction.IgnoreMisfirePolicy) &
+                     FilterBuilder.Lt(x => x.NextFireTime, nextFireTime) &
+                     FilterBuilder.Eq(x => x.State, Models.TriggerState.Waiting);
+
+        var sort = SortBuilder.Combine(
+            SortBuilder.Ascending(trigger => trigger.NextFireTime),
+            SortBuilder.Descending(trigger => trigger.Priority)
+        );
+
+        var cursor = Collection
+            //
+            .Find(filter)
+            .Limit(maxResults)
+            .Project(trigger => new TriggerKey(trigger.Name, trigger.Group))
+            .Sort(sort)
             .ToCursor();
 
-        results = new List<TriggerKey>();
 
         var hasReachedLimit = false;
         while (cursor.MoveNext() && !hasReachedLimit)

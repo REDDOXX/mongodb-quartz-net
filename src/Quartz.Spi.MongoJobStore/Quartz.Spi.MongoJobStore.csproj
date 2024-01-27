@@ -19,8 +19,9 @@
 		<RepositoryType>GitHub</RepositoryType>
 		<PackageTags>Quartz.NET Store JobStore MongoDB</PackageTags>
 		<PackageProjectUrl>https://github.com/REDDOXX/mongodb-quartz-net</PackageProjectUrl>
-
+		
 		<Title>Quartz.Spi.MongoJobStore</Title>
+		<Description>MongoDb job-store implementation for quartz scheduler</Description>
 
 		<PackageLicenseFile>LICENSE.txt</PackageLicenseFile>
 		<PackageReadmeFile>README.md</PackageReadmeFile>
@@ -32,13 +33,10 @@
 		<PackageReference Include="Quartz" Version="3.8.0" />
 		<PackageReference Include="Quartz.Serialization.Json" Version="3.8.0" />
 	</ItemGroup>
-	<ItemGroup>
-		<PackageReference Include="Common.Logging" Version="3.4.1" />
-	</ItemGroup>
 
 
 	<ItemGroup>
-		<None Include="../../license.txt" Pack="true" PackagePath="/" />
-		<None Include="../../readme.md" Pack="true" PackagePath="/" />
+		<None Include="../../LICENSE.txt" Pack="true" PackagePath="/" />
+		<None Include="../../README.md" Pack="true" PackagePath="/" />
 	</ItemGroup>
 </Project>

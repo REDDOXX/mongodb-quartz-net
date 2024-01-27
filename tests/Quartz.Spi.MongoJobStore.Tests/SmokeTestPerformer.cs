@@ -5,13 +5,13 @@ using Quartz.Impl.Calendar;
 using Quartz.Impl.Matchers;
 using Quartz.Impl.Triggers;
 
-//using Quartz.Job;
+using Xunit;
 
 namespace Quartz.Spi.MongoJobStore.Tests;
 
-public class SmokeTestPerformer
+public static class SmokeTestPerformer
 {
-    public async Task Test(IScheduler scheduler, bool clearJobs, bool scheduleJobs)
+    public static async Task Test(IScheduler scheduler, bool clearJobs, bool scheduleJobs)
     {
         try
         {
@@ -22,23 +22,25 @@ public class SmokeTestPerformer
 
             if (scheduleJobs)
             {
-                ICalendar cronCalendar = new CronCalendar("0/5 * * * * ?");
-                ICalendar holidayCalendar = new HolidayCalendar();
+                var cronCalendar = new CronCalendar("0/5 * * * * ?");
+                var holidayCalendar = new HolidayCalendar();
 
                 // QRTZNET-86
                 var t = await scheduler.GetTrigger(new TriggerKey("NonExistingTrigger", "NonExistingGroup"));
-                (t).Should().BeNull();
+                t.Should().BeNull();
 
                 var cal = new AnnualCalendar();
                 await scheduler.AddCalendar("annualCalendar", cal, false, true);
 
-                IOperableTrigger calendarsTrigger = new SimpleTriggerImpl(
+                var calendarsTrigger = new SimpleTriggerImpl(
                     "calendarsTrigger",
                     "test",
                     20,
                     TimeSpan.FromMilliseconds(5)
-                );
-                calendarsTrigger.CalendarName = "annualCalendar";
+                )
+                {
+                    CalendarName = "annualCalendar",
+                };
 
                 var jd = new JobDetailImpl("testJob", "test", typeof(NoOpJob));
                 await scheduler.ScheduleJob(jd, calendarsTrigger);
@@ -63,9 +65,11 @@ public class SmokeTestPerformer
 
                 (await scheduler.GetCalendar("annualCalendar")).Should().NotBeNull();
 
-                var lonelyJob = new JobDetailImpl("lonelyJob", "lonelyGroup", typeof(SimpleRecoveryJob));
-                lonelyJob.Durable = true;
-                lonelyJob.RequestsRecovery = true;
+                var lonelyJob = new JobDetailImpl("lonelyJob", "lonelyGroup", typeof(SimpleRecoveryJob))
+                {
+                    Durable = true,
+                    RequestsRecovery = true,
+                };
                 await scheduler.AddJob(lonelyJob, false);
                 await scheduler.AddJob(lonelyJob, true);
 
@@ -73,13 +77,16 @@ public class SmokeTestPerformer
 
                 var count = 1;
 
-                var job = new JobDetailImpl("job_" + count, schedId, typeof(SimpleRecoveryJob));
+                var job = new JobDetailImpl("job_" + count, schedId, typeof(SimpleRecoveryJob))
+                {
+                    // ask scheduler to re-Execute this job if it was in progress when
+                    // the scheduler went down...
+                    RequestsRecovery = true,
+                };
 
-                // ask scheduler to re-Execute this job if it was in progress when
-                // the scheduler went down...
-                job.RequestsRecovery = true;
-                IOperableTrigger trigger = new SimpleTriggerImpl("trig_" + count, schedId, 20, TimeSpan.FromSeconds(5));
+                var trigger = new SimpleTriggerImpl("trig_" + count, schedId, 20, TimeSpan.FromSeconds(5));
                 trigger.JobDataMap.Add("key", "value");
+                trigger.JobDataMap.Add(Guid.NewGuid().ToString(), Guid.NewGuid());
                 trigger.EndTimeUtc = DateTime.UtcNow.AddYears(10);
 
                 trigger.StartTimeUtc = DateTime.Now.AddMilliseconds(1000L);
@@ -87,52 +94,68 @@ public class SmokeTestPerformer
 
                 // check that trigger was stored
                 var persisted = await scheduler.GetTrigger(new TriggerKey("trig_" + count, schedId));
-                (persisted).Should().NotBeNull();
+                persisted.Should().NotBeNull();
                 (persisted is SimpleTriggerImpl).Should().BeTrue();
 
                 count++;
-                job = new JobDetailImpl("job_" + count, schedId, typeof(SimpleRecoveryJob));
-                // ask scheduler to re-Execute this job if it was in progress when
-                // the scheduler went down...
-                job.RequestsRecovery = true;
-                trigger = new SimpleTriggerImpl("trig_" + count, schedId, 20, TimeSpan.FromSeconds(5));
+                job = new JobDetailImpl("job_" + count, schedId, typeof(SimpleRecoveryJob))
+                {
+                    // ask scheduler to re-Execute this job if it was in progress when
+                    // the scheduler went down...
+                    RequestsRecovery = true,
+                };
 
-                trigger.StartTimeUtc = DateTime.Now.AddMilliseconds(2000L);
+                trigger = new SimpleTriggerImpl("trig_" + count, schedId, 20, TimeSpan.FromSeconds(5))
+                {
+                    StartTimeUtc = DateTime.Now.AddMilliseconds(2000L),
+                };
                 await scheduler.ScheduleJob(job, trigger);
 
                 count++;
-                job = new JobDetailImpl("job_" + count, schedId, typeof(SimpleRecoveryStatefulJob));
-                // ask scheduler to re-Execute this job if it was in progress when
-                // the scheduler went down...
-                job.RequestsRecovery = true;
-                trigger = new SimpleTriggerImpl("trig_" + count, schedId, 20, TimeSpan.FromSeconds(3));
+                job = new JobDetailImpl("job_" + count, schedId, typeof(SimpleRecoveryStatefulJob))
+                {
+                    // ask scheduler to re-Execute this job if it was in progress when
+                    // the scheduler went down...
+                    RequestsRecovery = true,
+                };
 
-                trigger.StartTimeUtc = DateTime.Now.AddMilliseconds(1000L);
+                trigger = new SimpleTriggerImpl("trig_" + count, schedId, 20, TimeSpan.FromSeconds(3))
+                {
+                    StartTimeUtc = DateTime.Now.AddMilliseconds(1000L),
+                };
+
                 await scheduler.ScheduleJob(job, trigger);
 
                 count++;
-                job = new JobDetailImpl("job_" + count, schedId, typeof(SimpleRecoveryJob));
-                // ask scheduler to re-Execute this job if it was in progress when
-                // the scheduler went down...
-                job.RequestsRecovery = true;
-                trigger = new SimpleTriggerImpl("trig_" + count, schedId, 20, TimeSpan.FromSeconds(4));
-
-                trigger.StartTimeUtc = DateTime.Now.AddMilliseconds(1000L);
+                job = new JobDetailImpl("job_" + count, schedId, typeof(SimpleRecoveryJob))
+                {
+                    // ask scheduler to re-Execute this job if it was in progress when
+                    // the scheduler went down...
+                    RequestsRecovery = true,
+                };
+                trigger = new SimpleTriggerImpl("trig_" + count, schedId, 20, TimeSpan.FromSeconds(4))
+                {
+                    StartTimeUtc = DateTime.Now.AddMilliseconds(1000L),
+                };
                 await scheduler.ScheduleJob(job, trigger);
 
                 count++;
-                job = new JobDetailImpl("job_" + count, schedId, typeof(SimpleRecoveryJob));
-                // ask scheduler to re-Execute this job if it was in progress when
-                // the scheduler went down...
-                job.RequestsRecovery = true;
+                job = new JobDetailImpl("job_" + count, schedId, typeof(SimpleRecoveryJob))
+                {
+                    // ask scheduler to re-Execute this job if it was in progress when
+                    // the scheduler went down...
+                    RequestsRecovery = true,
+                };
                 trigger = new SimpleTriggerImpl("trig_" + count, schedId, 20, TimeSpan.FromMilliseconds(4500));
                 await scheduler.ScheduleJob(job, trigger);
 
                 count++;
-                job = new JobDetailImpl("job_" + count, schedId, typeof(SimpleRecoveryJob));
-                // ask scheduler to re-Execute this job if it was in progress when
-                // the scheduler went down...
-                job.RequestsRecovery = true;
+                job = new JobDetailImpl("job_" + count, schedId, typeof(SimpleRecoveryJob))
+                {
+                    // ask scheduler to re-Execute this job if it was in progress when
+                    // the scheduler went down...
+                    RequestsRecovery = true,
+                };
                 IOperableTrigger ct = new CronTriggerImpl("cron_trig_" + count, schedId, "0/10 * * * * ?");
                 ct.JobDataMap.Add("key", "value");
                 ct.StartTimeUtc = DateTime.Now.AddMilliseconds(1000);
@@ -140,10 +163,12 @@ public class SmokeTestPerformer
                 await scheduler.ScheduleJob(job, ct);
 
                 count++;
-                job = new JobDetailImpl("job_" + count, schedId, typeof(SimpleRecoveryJob));
-                // ask scheduler to re-Execute this job if it was in progress when
-                // the scheduler went down...
-                job.RequestsRecovery = true;
+                job = new JobDetailImpl("job_" + count, schedId, typeof(SimpleRecoveryJob))
+                {
+                    // ask scheduler to re-Execute this job if it was in progress when
+                    // the scheduler went down...
+                    RequestsRecovery = true,
+                };
                 var nt = new DailyTimeIntervalTriggerImpl(
                     "nth_trig_" + count,
                     schedId,
@@ -151,15 +176,19 @@ public class SmokeTestPerformer
                     new TimeOfDay(23, 30, 0),
                     IntervalUnit.Hour,
                     1
-                );
-                nt.StartTimeUtc = DateTime.Now.Date.AddMilliseconds(1000);
+                )
+                {
+                    StartTimeUtc = DateTime.Now.Date.AddMilliseconds(1000),
+                };
 
                 await scheduler.ScheduleJob(job, nt);
 
-                var nt2 = new DailyTimeIntervalTriggerImpl();
-                nt2.Key = new TriggerKey("nth_trig2_" + count, schedId);
-                nt2.StartTimeUtc = DateTime.Now.Date.AddMilliseconds(1000);
-                nt2.JobKey = job.Key;
+                var nt2 = new DailyTimeIntervalTriggerImpl
+                {
+                    Key = new TriggerKey("nth_trig2_" + count, schedId),
+                    StartTimeUtc = DateTime.Now.Date.AddMilliseconds(1000),
+                    JobKey = job.Key,
+                };
                 await scheduler.ScheduleJob(nt2);
 
                 // GitHub issue #92
@@ -172,7 +201,9 @@ public class SmokeTestPerformer
                 await scheduler.UnscheduleJob(nt2.Key);
                 await scheduler.ScheduleJob(nt2);
 
-                var triggerFromDb = (IDailyTimeIntervalTrigger)await scheduler.GetTrigger(nt2.Key);
+                var triggerFromDb = await scheduler.GetTrigger(nt2.Key) as IDailyTimeIntervalTrigger;
+                Assert.NotNull(triggerFromDb);
+
                 triggerFromDb.StartTimeOfDay.Hour.Should().Be(1);
                 triggerFromDb.StartTimeOfDay.Minute.Should().Be(2);
                 triggerFromDb.StartTimeOfDay.Second.Should().Be(3);
@@ -189,24 +220,25 @@ public class SmokeTestPerformer
                     DateTime.UtcNow.AddMinutes(1),
                     IntervalUnit.Second,
                     8
-                );
-                intervalTrigger.JobKey = job.Key;
+                )
+                {
+                    JobKey = job.Key,
+                };
 
                 await scheduler.ScheduleJob(intervalTrigger);
 
                 // bulk operations
-                IJobDetail detail = new JobDetailImpl("job_" + count, schedId, typeof(SimpleRecoveryJob));
-                ITrigger simple = new SimpleTriggerImpl("trig_" + count, schedId, 20, TimeSpan.FromMilliseconds(4500));
-                var triggers = (IReadOnlyCollection<ITrigger>)new HashSet<ITrigger>
+                var detail = new JobDetailImpl("job_" + count, schedId, typeof(SimpleRecoveryJob));
+                var simple = new SimpleTriggerImpl("trig_" + count, schedId, 20, TimeSpan.FromMilliseconds(4500));
+
+                var triggers = new HashSet<ITrigger>
                 {
                     simple,
                 };
-                var info =
-                    (IReadOnlyDictionary<IJobDetail, IReadOnlyCollection<ITrigger>>)new
-                        Dictionary<IJobDetail, IReadOnlyCollection<ITrigger>>
-                        {
-                            [detail] = triggers,
-                        };
+                var info = new Dictionary<IJobDetail, IReadOnlyCollection<ITrigger>>
+                {
+                    [detail] = triggers,
+                };
 
                 await scheduler.ScheduleJobs(info, true);
 
@@ -214,19 +246,19 @@ public class SmokeTestPerformer
                 (await scheduler.CheckExists(simple.Key)).Should().BeTrue();
 
                 // QRTZNET-243
-                await scheduler.GetJobKeys(GroupMatcher<JobKey>.GroupContains("a").DeepClone());
-                await scheduler.GetJobKeys(GroupMatcher<JobKey>.GroupEndsWith("a").DeepClone());
-                await scheduler.GetJobKeys(GroupMatcher<JobKey>.GroupStartsWith("a").DeepClone());
-                await scheduler.GetJobKeys(GroupMatcher<JobKey>.GroupEquals("a").DeepClone());
+                await scheduler.GetJobKeys(GroupMatcher<JobKey>.GroupContains("a"));
+                await scheduler.GetJobKeys(GroupMatcher<JobKey>.GroupEndsWith("a"));
+                await scheduler.GetJobKeys(GroupMatcher<JobKey>.GroupStartsWith("a"));
+                await scheduler.GetJobKeys(GroupMatcher<JobKey>.GroupEquals("a"));
 
-                await scheduler.GetTriggerKeys(GroupMatcher<TriggerKey>.GroupContains("a").DeepClone());
-                await scheduler.GetTriggerKeys(GroupMatcher<TriggerKey>.GroupEndsWith("a").DeepClone());
-                await scheduler.GetTriggerKeys(GroupMatcher<TriggerKey>.GroupStartsWith("a").DeepClone());
-                await scheduler.GetTriggerKeys(GroupMatcher<TriggerKey>.GroupEquals("a").DeepClone());
+                await scheduler.GetTriggerKeys(GroupMatcher<TriggerKey>.GroupContains("a"));
+                await scheduler.GetTriggerKeys(GroupMatcher<TriggerKey>.GroupEndsWith("a"));
+                await scheduler.GetTriggerKeys(GroupMatcher<TriggerKey>.GroupStartsWith("a"));
+                await scheduler.GetTriggerKeys(GroupMatcher<TriggerKey>.GroupEquals("a"));
 
                 await scheduler.Start();
 
-                Thread.Sleep(TimeSpan.FromSeconds(3));
+                await Task.Delay(TimeSpan.FromSeconds(3));
 
                 await scheduler.PauseAll();
 
@@ -238,7 +270,7 @@ public class SmokeTestPerformer
 
                 await scheduler.PauseJobs(GroupMatcher<JobKey>.GroupEquals(schedId));
 
-                Thread.Sleep(TimeSpan.FromSeconds(1));
+                await Task.Delay(TimeSpan.FromSeconds(1));
 
                 await scheduler.ResumeJobs(GroupMatcher<JobKey>.GroupEquals(schedId));
 
@@ -249,7 +281,7 @@ public class SmokeTestPerformer
 
                 (await scheduler.GetPausedTriggerGroups()).Count.Should().Be(1);
 
-                Thread.Sleep(TimeSpan.FromSeconds(3));
+                await Task.Delay(TimeSpan.FromSeconds(3));
                 await scheduler.ResumeTriggers(GroupMatcher<TriggerKey>.GroupEquals(schedId));
 
                 (await scheduler.GetTrigger(new TriggerKey("trig_2", schedId))).Should().NotBeNull();
@@ -257,21 +289,22 @@ public class SmokeTestPerformer
                 (await scheduler.GetMetaData()).Should().NotBeNull();
                 (await scheduler.GetCalendar("weeklyCalendar")).Should().NotBeNull();
 
-                var genericjobKey = new JobKey("genericJob", "genericGroup");
-                var genericJob = JobBuilder.Create<GenericJobType<string>>()
-                    .WithIdentity(genericjobKey)
+                var genericJobKey = new JobKey("genericJob", "genericGroup");
+                var genericJob = JobBuilder.Create<GenericJobType>()
+                    .WithIdentity(genericJobKey)
+                    .WithDescription("HelloWorld Test")
                     .StoreDurably()
                     .Build();
 
                 await scheduler.AddJob(genericJob, false);
 
-                genericJob = await scheduler.GetJobDetail(genericjobKey);
+                genericJob = await scheduler.GetJobDetail(genericJobKey);
                 genericJob.Should().NotBeNull();
-                await scheduler.TriggerJob(genericjobKey);
+                await scheduler.TriggerJob(genericJobKey);
 
-                Thread.Sleep(TimeSpan.FromSeconds(20));
+                await Task.Delay(TimeSpan.FromSeconds(60));
 
-                GenericJobType<string>.TriggeredCount.Should().Be(1);
+                GenericJobType.TriggeredCount.Should().Be(1);
                 await scheduler.Standby();
 
                 (await scheduler.GetCalendarNames()).Should().NotBeEmpty();
@@ -297,7 +330,7 @@ public class SmokeTestPerformer
         }
     }
 
-    private async Task TestMatchers(IScheduler scheduler)
+    private static async Task TestMatchers(IScheduler scheduler)
     {
         await scheduler.Clear();
 
@@ -387,7 +420,7 @@ public class NoOpJob : IJob
     }
 }
 
-public class GenericJobType<T> : IJob
+public class GenericJobType : IJob
 {
     public static int TriggeredCount { get; private set; }
 
@@ -407,36 +440,25 @@ public class SimpleRecoveryJob : IJob
     ///     <see cref="ITrigger" /> fires that is associated with
     ///     the <see cref="IJob" />.
     /// </summary>
-    public virtual Task Execute(IJobExecutionContext context)
+    public virtual async Task Execute(IJobExecutionContext context)
     {
         // delay for ten seconds
         try
         {
-            Thread.Sleep(TimeSpan.FromSeconds(10));
+            await Task.Delay(TimeSpan.FromSeconds(10));
         }
         catch (ThreadInterruptedException)
         {
         }
 
         var data = context.JobDetail.JobDataMap;
-        int count;
-        if (data.ContainsKey(Count))
-        {
-            count = data.GetInt(Count);
-        }
-        else
-        {
-            count = 0;
-        }
+        var count = data.ContainsKey(Count) ? data.GetInt(Count) : 0;
 
         count++;
         data.Put(Count, count);
-        return Task.FromResult(0);
     }
 }
 
 [DisallowConcurrentExecution]
 [PersistJobDataAfterExecution]
-public class SimpleRecoveryStatefulJob : SimpleRecoveryJob
-{
-}
+public class SimpleRecoveryStatefulJob : SimpleRecoveryJob;
