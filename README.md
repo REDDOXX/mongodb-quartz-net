@@ -10,37 +10,13 @@ Install-Package Quartz.Spi.MongoJobStore
 
 ## Basic Usage
 
-First, create a MongoDb database factory and add it to your DI-container.
+To use the MongoDb job-store you need to add your custom `IMongoDbJobStoreConnectionFactory` to the DI-container
+and configure the `UsePersistentStore` with `MongoDbJobStore`.
 
 ```csharp
-internal class LocalMongoDbJobStoreConnectionFactory : IMongoDbJobStoreConnectionFactory
-{
-    private const string LocalConnectionString = "mongodb://localhost/quartz?minPoolSize=16&maxConnecting=32";
-
-    private readonly IMongoDatabase _database;
-
-    public LocalMongoDbJobStoreConnectionFactory()
-    {
-        var url = new MongoUrl(LocalConnectionString);
-        var client = new MongoClient(url);
-
-        _database = client.GetDatabase(url.DatabaseName);
-    }
-
-    public IMongoDatabase GetDatabase()
-    {
-        return _database;
-    }
-}
-```
-
-```csharp
+    // MongoDb connection factory
     services.AddSingleton<IMongoDbJobStoreConnectionFactory, LocalMongoDbJobStoreConnectionFactory>();
-```
 
-Then, simply `UsePersistentStore` with `MongoDbJobStore`:
-
-```csharp
     services.AddQuartz(
         q =>
         {
@@ -65,4 +41,27 @@ Then, simply `UsePersistentStore` with `MongoDbJobStore`:
             );
         }
     );
+```
+
+The connection factory is required to return the database instance for your collections.
+```csharp
+internal class LocalMongoDbJobStoreConnectionFactory : IMongoDbJobStoreConnectionFactory
+{
+    private const string LocalConnectionString = "mongodb://localhost/quartz?minPoolSize=16&maxConnecting=32";
+
+    private readonly IMongoDatabase _database;
+
+    public LocalMongoDbJobStoreConnectionFactory()
+    {
+        var url = new MongoUrl(LocalConnectionString);
+        var client = new MongoClient(url);
+
+        _database = client.GetDatabase(url.DatabaseName);
+    }
+
+    public IMongoDatabase GetDatabase()
+    {
+        return _database;
+    }
+}
 ```
