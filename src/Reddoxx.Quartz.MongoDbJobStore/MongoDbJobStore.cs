@@ -108,8 +108,7 @@ public class MongoDbJobStore : IJobStore
 
     /// <summary>
     /// Get whether the threads spawned by this JobStore should be
-    /// marked as daemon.  Possible threads include the <see cref="MisfireHandler" />
-    /// and the <see cref="Quartz.Impl.AdoJobStore.ClusterManager"/>.
+    /// marked as daemon.
     /// </summary>
     /// <returns></returns>
     public bool MakeThreadsDaemons { get; set; }
@@ -265,7 +264,7 @@ public class MongoDbJobStore : IJobStore
         }
 
         _misfireHandler = new MisfireHandler(this);
-        await _misfireHandler.Initialize(cancellationToken);
+        _misfireHandler.Initialize();
         _schedulerRunning = true;
     }
 

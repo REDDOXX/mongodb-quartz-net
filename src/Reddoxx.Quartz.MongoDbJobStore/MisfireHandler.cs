@@ -16,22 +16,31 @@ internal class MisfireHandler
     private int _numFails;
 
     private readonly CancellationTokenSource _cancellationTokenSource = new();
+    private readonly QueuedTaskScheduler _taskScheduler;
     private Task? _task;
 
 
     public MisfireHandler(MongoDbJobStore jobStore)
     {
         _jobStore = jobStore;
+
+        var threadName = $"QuartzScheduler_{_jobStore.InstanceName}-{_jobStore.InstanceId}_MisfireHandler";
+        _taskScheduler = new QueuedTaskScheduler(
+            threadCount: 1,
+            threadName: threadName,
+            useForegroundThreads: !_jobStore.MakeThreadsDaemons
+        );
     }
 
-    public async Task Initialize(CancellationToken cancellationToken = default)
+    public void Initialize()
     {
-        _task = await Task.Factory.StartNew(
-            () => Run(_cancellationTokenSource.Token),
-            cancellationToken,
-            TaskCreationOptions.LongRunning,
-            TaskScheduler.Default
-        );
+        _task = Task.Factory.StartNew(
+                () => Run(_cancellationTokenSource.Token),
+                CancellationToken.None,
+                TaskCreationOptions.HideScheduler,
+                _taskScheduler
+            )
+            .Unwrap();
     }
 
     public async Task Shutdown()

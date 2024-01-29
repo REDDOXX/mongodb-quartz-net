@@ -16,29 +16,42 @@ internal class ClusterManager
     // keep constant lock requestor id for manager's lifetime
     private readonly Guid _requestorId = Guid.NewGuid();
 
-    private readonly MongoDbJobStore _jobStoreSupport;
+    private readonly MongoDbJobStore _jobStore;
 
 
     private readonly CancellationTokenSource _cancellationTokenSource = new();
+
+    private QueuedTaskScheduler _taskScheduler = null!;
+
     private Task _task = null!;
 
     private int _numFails;
 
-    internal ClusterManager(MongoDbJobStore jobStoreSupport)
+    internal ClusterManager(MongoDbJobStore jobStore)
     {
-        _jobStoreSupport = jobStoreSupport;
+        _jobStore = jobStore;
     }
 
     public async Task Initialize()
     {
         await Manage().ConfigureAwait(false);
 
-        _task = await Task.Factory.StartNew(
-            () => Run(_cancellationTokenSource.Token),
-            _cancellationTokenSource.Token,
-            TaskCreationOptions.LongRunning,
-            TaskScheduler.Default
+        var threadName = $"QuartzScheduler_{_jobStore.InstanceName}-{_jobStore.InstanceId}_ClusterManager";
+
+        _taskScheduler = new QueuedTaskScheduler(
+            threadCount: 1,
+            threadPriority: ThreadPriority.AboveNormal,
+            threadName: threadName,
+            useForegroundThreads: !_jobStore.MakeThreadsDaemons
         );
+
+        _task = Task.Factory.StartNew(
+                () => Run(_cancellationTokenSource.Token),
+                _cancellationTokenSource.Token,
+                TaskCreationOptions.HideScheduler,
+                _taskScheduler
+            )
+            .Unwrap();
     }
 
     public async Task Shutdown()
@@ -46,6 +59,8 @@ internal class ClusterManager
         await _cancellationTokenSource.CancelAsync();
         try
         {
+            _taskScheduler.Dispose();
+
             await _task.ConfigureAwait(false);
         }
         catch (OperationCanceledException)
@@ -59,8 +74,8 @@ internal class ClusterManager
         {
             token.ThrowIfCancellationRequested();
 
-            var timeToSleep = _jobStoreSupport.ClusterCheckinInterval;
-            var transpiredTime = SystemTime.UtcNow() - _jobStoreSupport.LastCheckin;
+            var timeToSleep = _jobStore.ClusterCheckinInterval;
+            var transpiredTime = SystemTime.UtcNow() - _jobStore.LastCheckin;
             timeToSleep -= transpiredTime;
 
             if (timeToSleep <= TimeSpan.Zero)
@@ -70,8 +85,7 @@ internal class ClusterManager
 
             if (_numFails > 0)
             {
-                timeToSleep = _jobStoreSupport.DbRetryInterval > timeToSleep ? _jobStoreSupport.DbRetryInterval
-                    : timeToSleep;
+                timeToSleep = _jobStore.DbRetryInterval > timeToSleep ? _jobStore.DbRetryInterval : timeToSleep;
             }
 
             await Task.Delay(timeToSleep, token).ConfigureAwait(false);
@@ -80,7 +94,7 @@ internal class ClusterManager
 
             if (await Manage().ConfigureAwait(false))
             {
-                _jobStoreSupport.SignalSchedulingChangeImmediately(MongoDbJobStore.SchedulingSignalDateTime);
+                _jobStore.SignalSchedulingChangeImmediately(MongoDbJobStore.SchedulingSignalDateTime);
             }
         }
     }
@@ -90,14 +104,14 @@ internal class ClusterManager
         var res = false;
         try
         {
-            res = await _jobStoreSupport.DoCheckin(_requestorId).ConfigureAwait(false);
+            res = await _jobStore.DoCheckin(_requestorId).ConfigureAwait(false);
 
             _numFails = 0;
             _logger.LogDebug("Check-in complete.");
         }
         catch (Exception e)
         {
-            if (_numFails % _jobStoreSupport.RetryableActionErrorLogThreshold == 0)
+            if (_numFails % _jobStore.RetryableActionErrorLogThreshold == 0)
             {
                 _logger.LogError(e, "Error managing cluster: {ExceptionMessage}", e.Message);
             }

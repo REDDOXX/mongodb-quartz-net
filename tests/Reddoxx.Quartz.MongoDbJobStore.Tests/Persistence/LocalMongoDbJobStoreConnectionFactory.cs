@@ -4,7 +4,7 @@ using Reddoxx.Quartz.MongoDbJobStore.Database;
 
 namespace Reddoxx.Quartz.MongoDbJobStore.Tests.Persistence;
 
-internal class LocalMongoDbJobStoreConnectionFactory : IMongoDbJobStoreConnectionFactory
+internal sealed class LocalMongoDbJobStoreConnectionFactory : IMongoDbJobStoreConnectionFactory
 {
     private const string LocalConnectionString = "mongodb://localhost/quartz?minPoolSize=16&maxConnecting=32";
 
