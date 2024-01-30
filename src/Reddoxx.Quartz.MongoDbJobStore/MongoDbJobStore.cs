@@ -13,7 +13,6 @@ using Quartz.Impl.Triggers;
 using Quartz.Simpl;
 using Quartz.Spi;
 
-using Reddoxx.Quartz.MongoDbJobStore.Cluster;
 using Reddoxx.Quartz.MongoDbJobStore.Database;
 using Reddoxx.Quartz.MongoDbJobStore.Models;
 using Reddoxx.Quartz.MongoDbJobStore.Repositories;
@@ -2055,10 +2054,7 @@ public class MongoDbJobStore : IJobStore
 
     #region Cluster
 
-    protected internal virtual async Task<bool> DoCheckin(
-        Guid requestorId,
-        CancellationToken cancellationToken = default
-    )
+    internal async Task<bool> DoCheckin(Guid requestorId, CancellationToken cancellationToken = default)
     {
         var recovered = false;
 

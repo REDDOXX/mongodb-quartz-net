@@ -4,7 +4,7 @@ using Quartz;
 
 using Reddoxx.Quartz.MongoDbJobStore.Util;
 
-namespace Reddoxx.Quartz.MongoDbJobStore.Cluster;
+namespace Reddoxx.Quartz.MongoDbJobStore;
 
 /// <summary>
 /// based upon: https://github.com/quartznet/quartznet/blob/7d525f21a3166c3b595508d345e23313fb9e8d4d/src/Quartz/Impl/AdoJobStore/ClusterManager.cs#L8

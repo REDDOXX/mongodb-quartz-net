@@ -51,6 +51,8 @@ internal class MisfireHandler
 
         try
         {
+            _taskScheduler.Dispose();
+
             await _task.ConfigureAwait(false);
         }
         catch (OperationCanceledException)
