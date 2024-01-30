@@ -104,7 +104,7 @@ internal class ClusterManager
         var res = false;
         try
         {
-            res = await _jobStore.DoCheckin(_requestorId).ConfigureAwait(false);
+            res = await _jobStore.DoCheckIn().ConfigureAwait(false);
 
             _numFails = 0;
             _logger.LogDebug("Check-in complete.");

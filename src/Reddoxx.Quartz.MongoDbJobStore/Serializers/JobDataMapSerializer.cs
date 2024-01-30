@@ -9,7 +9,7 @@ namespace Reddoxx.Quartz.MongoDbJobStore.Serializers;
 internal class JobDataMapSerializer : SerializerBase<JobDataMap>
 {
     private readonly DictionaryInterfaceImplementerSerializer<Dictionary<string, object>> _serializer =
-        new(DictionaryRepresentation.ArrayOfDocuments);
+        new(DictionaryRepresentation.Document);
 
 
     public override void Serialize(BsonSerializationContext context, BsonSerializationArgs args, JobDataMap value)

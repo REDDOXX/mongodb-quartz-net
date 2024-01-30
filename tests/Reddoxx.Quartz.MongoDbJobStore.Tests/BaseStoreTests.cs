@@ -15,7 +15,7 @@ public abstract class BaseStoreTests
     public const string DateStamps = "DATE_STAMPS";
     public static readonly TimeSpan TestTimeout = TimeSpan.FromSeconds(125);
 
-    protected static async Task<IScheduler> CreateScheduler(string instanceName = "QUARTZ_TEST", bool clustered = false)
+    protected static async Task<IScheduler> CreateScheduler(string instanceName = "QUARTZ_TEST", bool clustered = true)
     {
         var sp = CreateServiceProvider(instanceName, clustered);
 

@@ -59,9 +59,9 @@ public class MongoDbJobStore : IJobStore
     private ClusterManager? _clusterManager;
 
     private bool _schedulerRunning;
+    private volatile bool _shutdown;
 
     private readonly SemaphoreSlim _pendingLocksSemaphore = new(1);
-
 
     public string? ConnectionString { get; set; }
     public string? CollectionPrefix { get; set; }
@@ -221,9 +221,12 @@ public class MongoDbJobStore : IJobStore
         }
     }
 
+
     public async Task Shutdown(CancellationToken token = default)
     {
         _logger.LogTrace("Scheduler {InstanceId}/{InstanceName} shutdown", InstanceId, InstanceName);
+
+        _shutdown = true;
 
         if (_misfireHandler != null)
         {
@@ -2054,7 +2057,7 @@ public class MongoDbJobStore : IJobStore
 
     #region Cluster
 
-    internal async Task<bool> DoCheckin(Guid requestorId, CancellationToken cancellationToken = default)
+    internal async Task<bool> DoCheckIn(CancellationToken cancellationToken = default)
     {
         var recovered = false;
 
@@ -2113,7 +2116,7 @@ public class MongoDbJobStore : IJobStore
     /// Get a list of all scheduler instances in the cluster that may have failed.
     /// This includes this scheduler if it is checking in for the first time.
     /// </summary>
-    private async Task<IReadOnlyList<Scheduler>> FindFailedInstances()
+    private async Task<List<Scheduler>> FindFailedInstances()
     {
         var failedInstances = new List<Scheduler>();
         var foundThisScheduler = false;
@@ -2476,6 +2479,43 @@ public class MongoDbJobStore : IJobStore
 
 
     private async Task<T> ExecuteInTx<T>(
+        LockType lockType,
+        Func<Task<T>> txCallback,
+        CancellationToken cancellationToken = default
+    )
+    {
+        for (var retry = 1; !_shutdown; retry++)
+        {
+            try
+            {
+                return await ExecuteInNonManagedTxLock(lockType, txCallback, cancellationToken);
+            }
+            catch (JobPersistenceException jpe)
+            {
+                if (retry % RetryableActionErrorLogThreshold == 0)
+                {
+                    await _schedulerSignaler.NotifySchedulerListenersError(
+                            $"An error occurred while {txCallback}",
+                            jpe,
+                            cancellationToken
+                        )
+                        .ConfigureAwait(false);
+                }
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "retryExecuteInNonManagedTXLock: RuntimeException {Message}", e.Message);
+            }
+
+            // retry every N seconds (the db connection must be failed)
+            await Task.Delay(DbRetryInterval, cancellationToken).ConfigureAwait(false);
+        }
+
+        throw new InvalidOperationException("JobStore is shutdown - aborting retry");
+    }
+
+
+    private async Task<T> ExecuteInNonManagedTxLock<T>(
         LockType lockType,
         Func<Task<T>> txCallback,
         CancellationToken cancellationToken = default
