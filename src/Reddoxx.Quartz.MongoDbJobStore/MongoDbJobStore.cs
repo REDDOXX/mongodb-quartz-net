@@ -2485,24 +2485,39 @@ public class MongoDbJobStore : IJobStore
         CancellationToken cancellationToken = default
     )
     {
-        while (true)
+        try
         {
-            await _pendingLocksSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+            while (true)
+            {
+                await _pendingLocksSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+                try
+                {
+                    if (await _lockRepository.TryAcquireLock(lockType, InstanceId).ConfigureAwait(false))
+                    {
+                        break;
+                    }
+                }
+                finally
+                {
+                    _pendingLocksSemaphore.Release();
+                }
+
+                await Task.Delay(SleepThreshold, cancellationToken).ConfigureAwait(false);
+            }
+
+            return await txCallback.Invoke().ConfigureAwait(false);
+        }
+        finally
+        {
+            await _pendingLocksSemaphore.WaitAsync(cancellationToken);
             try
             {
-                if (await _lockRepository.TryAcquireLock(lockType, InstanceId).ConfigureAwait(false))
-                {
-                    return await txCallback.Invoke().ConfigureAwait(false);
-                }
+                await _lockRepository.ReleaseLock(lockType, InstanceId).ConfigureAwait(false);
             }
             finally
             {
-                await _lockRepository.ReleaseLock(lockType, InstanceId).ConfigureAwait(false);
-
                 _pendingLocksSemaphore.Release();
             }
-
-            await Task.Delay(SleepThreshold, cancellationToken).ConfigureAwait(false);
         }
     }
 
