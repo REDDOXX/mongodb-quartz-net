@@ -2006,10 +2006,9 @@ public class MongoDbJobStore : IJobStore
         var maxMisfiresToHandleAtTime = recovering ? -1 : MaxMisfiresToHandleAtATime;
         var earliestNewTime = DateTime.MaxValue;
 
-        var hasMoreMisfiredTriggers = _triggerRepository.HasMisfiredTriggers(
+        var (hasMoreMisfiredTriggers, misfiredTriggers) = await _triggerRepository.HasMisfiredTriggers(
             MisfireTime.UtcDateTime,
-            maxMisfiresToHandleAtTime,
-            out var misfiredTriggers
+            maxMisfiresToHandleAtTime
         );
 
         if (hasMoreMisfiredTriggers)

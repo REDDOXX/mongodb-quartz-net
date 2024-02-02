@@ -483,16 +483,16 @@ internal class TriggerRepository : BaseRepository<Trigger>
     /// </summary>
     /// <param name="nextFireTime"></param>
     /// <param name="maxResults"></param>
-    /// <param name="results"></param>
     /// <returns></returns>
-    public bool HasMisfiredTriggers(DateTime nextFireTime, int maxResults, out List<TriggerKey> results)
+    public async Task<(bool hasReachedLimit, List<TriggerKey> results)> HasMisfiredTriggers(
+        DateTime nextFireTime,
+        int maxResults
+    )
     {
         // SELECT TRIGGER_NAME, TRIGGER_GROUP
         // FROM TRIGGERS
         // WHERE SCHED_NAME = @schedulerName AND MISFIRE_INSTR <> -1 AND NEXT_FIRE_TIME < @nextFireTime AND TRIGGER_STATE = @state1
         // ORDER BY NEXT_FIRE_TIME ASC, PRIORITY DESC
-
-        results = [];
 
         var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) &
                      FilterBuilder.Ne(x => x.MisfireInstruction, MisfireInstruction.IgnoreMisfirePolicy) &
@@ -504,17 +504,19 @@ internal class TriggerRepository : BaseRepository<Trigger>
             SortBuilder.Descending(trigger => trigger.Priority)
         );
 
-        var cursor = Collection
+        var cursor = await Collection
             //
             .Find(filter)
             .Limit(maxResults)
             .Project(trigger => new TriggerKey(trigger.Name, trigger.Group))
             .Sort(sort)
-            .ToCursor();
+            .ToCursorAsync();
 
+
+        var results = new List<TriggerKey>();
 
         var hasReachedLimit = false;
-        while (cursor.MoveNext() && !hasReachedLimit)
+        while (await cursor.MoveNextAsync() && !hasReachedLimit)
         {
             foreach (var triggerKey in cursor.Current)
             {
@@ -529,6 +531,6 @@ internal class TriggerRepository : BaseRepository<Trigger>
             }
         }
 
-        return hasReachedLimit;
+        return (hasReachedLimit, results);
     }
 }

@@ -41,10 +41,11 @@ internal class PausedTriggerGroupRepository : BaseRepository<PausedTriggerGroup>
     public async Task<List<string>> GetPausedTriggerGroups()
     {
         // SELECT TRIGGER_GROUP FROM PAUSED_TRIGGER_GRPS WHERE SCHED_NAME = @schedulerName
+        var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName);
 
         return await Collection
             //
-            .Find(group => group.InstanceName == InstanceName)
+            .Find(filter)
             .Project(group => group.Group)
             .ToListAsync()
             .ConfigureAwait(false);
