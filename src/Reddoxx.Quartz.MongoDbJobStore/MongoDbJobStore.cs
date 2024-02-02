@@ -2205,7 +2205,11 @@ public class MongoDbJobStore : IJobStore
     {
         var passed = DateTimeOffset.UtcNow - LastCheckin;
         var ts = scheduler.CheckInInterval > passed ? scheduler.CheckInInterval : passed; // Max
-        return scheduler.LastCheckIn.Add(ts).Add(ClusterCheckinMisfireThreshold);
+
+        return scheduler.LastCheckIn
+            //
+            .Add(ts)
+            .Add(ClusterCheckinMisfireThreshold);
     }
 
     private async Task<IReadOnlyList<Scheduler>> ClusterCheckIn()

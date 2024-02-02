@@ -42,7 +42,7 @@ internal class SchedulerRepository : BaseRepository<Scheduler>
                 {
                     SchedulerName = InstanceName,
                     InstanceId = instanceId,
-                    LastCheckIn = checkInTime,
+                    LastCheckIn = checkInTime.UtcDateTime,
                     CheckInInterval = interval,
                 }
             )
@@ -75,7 +75,7 @@ internal class SchedulerRepository : BaseRepository<Scheduler>
         var filter = FilterBuilder.Eq(x => x.SchedulerName, InstanceName) &
                      FilterBuilder.Eq(x => x.InstanceId, instanceId);
 
-        var update = UpdateBuilder.Set(sch => sch.LastCheckIn, lastCheckIn);
+        var update = UpdateBuilder.Set(sch => sch.LastCheckIn, lastCheckIn.UtcDateTime);
 
         var result = await Collection.UpdateOneAsync(filter, update).ConfigureAwait(false);
         return result.ModifiedCount;

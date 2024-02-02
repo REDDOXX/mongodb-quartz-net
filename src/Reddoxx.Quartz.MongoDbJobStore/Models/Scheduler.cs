@@ -28,7 +28,7 @@ internal class Scheduler
     /// <summary>
     /// last_checkin_time
     /// </summary>
-    public DateTimeOffset LastCheckIn { get; set; }
+    public DateTime LastCheckIn { get; set; }
 
     /// <summary>
     /// checkin_interval
