@@ -1,6 +1,10 @@
 MongoDB Job Store for Quartz.NET
 ================================
-Thanks to @chrisdrobison for handing over this project.
+Fork of the awesome codebase of [@glucaci](https://github.com/glucaci/mongodb-quartz-net) with multiple tweaks:
+
+- Latest .net support
+- Quartz cluster support
+- DI-based configuration
 
 ## Nuget
 
