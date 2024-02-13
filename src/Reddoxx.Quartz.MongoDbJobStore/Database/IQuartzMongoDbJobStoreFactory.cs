@@ -5,7 +5,7 @@ using MongoDB.Driver;
 namespace Reddoxx.Quartz.MongoDbJobStore.Database;
 
 [PublicAPI]
-public interface IMongoDbJobStoreConnectionFactory
+public interface IQuartzMongoDbJobStoreFactory
 {
     /// <summary>
     /// Returns the database where the quartz collections reside in

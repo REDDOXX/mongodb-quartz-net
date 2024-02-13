@@ -16,7 +16,6 @@ internal class Calendar
     public ObjectId Id { get; set; }
 
     /// <summary>
-    /// 
     /// </summary>
     /// <remarks>This is called sched_name</remarks>
     [BsonRequired]

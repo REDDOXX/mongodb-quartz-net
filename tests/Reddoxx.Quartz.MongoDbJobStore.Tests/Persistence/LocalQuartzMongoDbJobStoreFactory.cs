@@ -4,13 +4,13 @@ using Reddoxx.Quartz.MongoDbJobStore.Database;
 
 namespace Reddoxx.Quartz.MongoDbJobStore.Tests.Persistence;
 
-internal sealed class LocalMongoDbJobStoreConnectionFactory : IMongoDbJobStoreConnectionFactory
+internal sealed class LocalQuartzMongoDbJobStoreFactory : IQuartzMongoDbJobStoreFactory
 {
-    private const string LocalConnectionString = "mongodb://localhost/quartz?minPoolSize=16&maxConnecting=32";
+    private const string LocalConnectionString = "mongodb://localhost/quartz";
 
     private readonly IMongoDatabase _database;
 
-    public LocalMongoDbJobStoreConnectionFactory()
+    public LocalQuartzMongoDbJobStoreFactory()
     {
         var url = new MongoUrl(LocalConnectionString);
         var client = new MongoClient(url);
