@@ -86,9 +86,9 @@ internal class LockRepository : BaseRepository<Lock>
                 if (!found)
                 {
                     _logger.LogDebug(
-                        "Inserting new lock row for lock: '{LockType}' being obtained by task: {TaskId}",
-                        lockType,
-                        Task.CurrentId
+                        "Inserting new lock row for lock: {InstanceName}/{LockType} being obtained by task",
+                        InstanceName,
+                        lockType
                     );
 
                     await Collection.InsertOneAsync(
@@ -104,6 +104,8 @@ internal class LockRepository : BaseRepository<Lock>
                         .ConfigureAwait(false);
                 }
 
+                _logger.LogDebug("Acquired lock for {InstanceName}/{LockType}", InstanceName, lockType);
+
                 // obtained lock, go
                 return;
             }
@@ -115,9 +117,9 @@ internal class LockRepository : BaseRepository<Lock>
                 }
 
                 _logger.LogDebug(
-                    "Lock {LockType} was not obtained by {TaskId}, will_retry={Retry}",
+                    "Lock  {InstanceName}/{LockType} was not obtained, will_retry={Retry}",
+                    InstanceName,
                     lockType,
-                    Task.CurrentId,
                     count < maxRetryLocal
                 );
 
@@ -132,7 +134,7 @@ internal class LockRepository : BaseRepository<Lock>
                     continue;
                 }
 
-                throw new LockException("Failure obtaining db row lock: " + ex.Message, ex);
+                throw new LockException($"Failure obtaining db row lock: {ex.Message}", ex);
             }
         } while (true);
     }
