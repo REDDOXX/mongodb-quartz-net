@@ -173,12 +173,12 @@ public class MongoDbJobStore : IJobStore
 
     public MongoDbJobStore(ILoggerFactory loggerFactory, IQuartzMongoDbJobStoreFactory factory)
     {
+        LogProvider.SetLogProvider(loggerFactory);
+
         ObjectSerializer.Initialize();
 
         _factory = factory;
         _database = _factory.GetDatabase();
-
-        LogProvider.SetLogProvider(loggerFactory);
     }
 
 
