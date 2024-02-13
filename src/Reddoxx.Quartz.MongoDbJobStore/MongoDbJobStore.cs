@@ -1068,16 +1068,19 @@ public class MongoDbJobStore : IJobStore
         try
         {
             var misfireCount = await _triggerRepository.GetMisfireCount(MisfireTime.UtcDateTime).ConfigureAwait(false);
+
+            _logger.LogDebug("Found {MisfireCount} triggers that missed their scheduled fire-time.", misfireCount);
+
             if (misfireCount == 0)
             {
-                _logger.LogDebug("Found 0 triggers that missed their scheduled fire-time.");
                 return RecoverMisfiredJobsResult.NoOp;
             }
 
             return await ExecuteInTx(
-                LockType.TriggerAccess,
-                async () => await RecoverMisfiredJobsInternal(false).ConfigureAwait(false)
-            );
+                    LockType.TriggerAccess,
+                    async () => await RecoverMisfiredJobsInternal(false).ConfigureAwait(false)
+                )
+                .ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -1225,7 +1228,7 @@ public class MongoDbJobStore : IJobStore
 
     private async Task<bool> RemoveTriggerInternal(TriggerKey key, IJobDetail? job = null)
     {
-        var trigger = await _triggerRepository.GetTrigger(key);
+        var trigger = await _triggerRepository.GetTrigger(key).ConfigureAwait(false);
         if (trigger == null)
         {
             return false;
@@ -1504,7 +1507,7 @@ public class MongoDbJobStore : IJobStore
         {
             _logger.LogError(ex, "Error retrieving job, setting trigger state to ERROR.");
 
-            await _triggerRepository.UpdateTriggerState(trigger.Key, Models.TriggerState.Error);
+            await _triggerRepository.UpdateTriggerState(trigger.Key, Models.TriggerState.Error).ConfigureAwait(false);
             throw;
         }
 
@@ -2006,9 +2009,10 @@ public class MongoDbJobStore : IJobStore
         var earliestNewTime = DateTime.MaxValue;
 
         var (hasMoreMisfiredTriggers, misfiredTriggers) = await _triggerRepository.HasMisfiredTriggers(
-            MisfireTime.UtcDateTime,
-            maxMisfiresToHandleAtTime
-        );
+                MisfireTime.UtcDateTime,
+                maxMisfiresToHandleAtTime
+            )
+            .ConfigureAwait(false);
 
         if (hasMoreMisfiredTriggers)
         {
@@ -2059,50 +2063,52 @@ public class MongoDbJobStore : IJobStore
     {
         var recovered = false;
 
-        // Other than the first time, always checkin first to make sure there is
-        // work to be done before we acquire the lock (since that is expensive,
-        // and is almost never necessary).  This must be done in a separate
-        // transaction to prevent a deadlock under recovery conditions.
-        IReadOnlyList<Scheduler>? failedRecords = null;
-        if (!_firstCheckIn)
+        using var session = await _database.Client.StartSessionAsync(cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+
+        session.StartTransaction();
+
+        try
         {
-            failedRecords = await ClusterCheckIn().ConfigureAwait(false);
+            // Other than the first time, always checkin first to make sure there is
+            // work to be done before we acquire the lock (since that is expensive,
+            // and is almost never necessary).  This must be done in a separate
+            // transaction to prevent a deadlock under recovery conditions.
+            IReadOnlyList<Scheduler>? failedRecords = null;
+            if (!_firstCheckIn)
+            {
+                failedRecords = await ClusterCheckIn().ConfigureAwait(false);
+            }
+
+            if (_firstCheckIn || failedRecords != null && failedRecords.Count > 0)
+            {
+                await _lockRepository.TryAcquireLock(session, LockType.StateAccess, cancellationToken)
+                    .ConfigureAwait(false);
+
+                // Now that we own the lock, make sure we still have work to do.
+                // The first time through, we also need to make sure we update/create our state record
+                if (_firstCheckIn)
+                {
+                    failedRecords = await ClusterCheckIn().ConfigureAwait(false);
+                }
+                else
+                {
+                    failedRecords = await FindFailedInstances().ConfigureAwait(false);
+                }
+
+                if (failedRecords.Count > 0)
+                {
+                    await _lockRepository.TryAcquireLock(session, LockType.TriggerAccess, cancellationToken)
+                        .ConfigureAwait(false);
+
+                    await ClusterRecover(failedRecords).ConfigureAwait(false);
+                    recovered = true;
+                }
+            }
         }
-
-        if (_firstCheckIn || failedRecords != null && failedRecords.Count > 0)
+        finally
         {
-            await ExecuteInTx(
-                    LockType.StateAccess,
-                    async () =>
-                    {
-                        // Now that we own the lock, make sure we still have work to do.
-                        // The first time through, we also need to make sure we update/create our state record
-                        if (_firstCheckIn)
-                        {
-                            failedRecords = await ClusterCheckIn().ConfigureAwait(false);
-                        }
-                        else
-                        {
-                            failedRecords = await FindFailedInstances().ConfigureAwait(false);
-                        }
-
-                        if (failedRecords.Count > 0)
-                        {
-                            await ExecuteInTx(
-                                    LockType.TriggerAccess,
-                                    async () =>
-                                    {
-                                        await ClusterRecover(failedRecords).ConfigureAwait(false);
-                                        recovered = true;
-                                    },
-                                    cancellationToken
-                                )
-                                .ConfigureAwait(false);
-                        }
-                    },
-                    cancellationToken
-                )
-                .ConfigureAwait(false);
+            await session.CommitTransactionAsync(cancellationToken).ConfigureAwait(false);
         }
 
         _firstCheckIn = false;
@@ -2481,43 +2487,6 @@ public class MongoDbJobStore : IJobStore
 
 
     private async Task<T> ExecuteInTx<T>(
-        LockType lockType,
-        Func<Task<T>> txCallback,
-        CancellationToken cancellationToken = default
-    )
-    {
-        for (var retry = 1; !_shutdown; retry++)
-        {
-            try
-            {
-                return await ExecuteInNonManagedTxLock(lockType, txCallback, cancellationToken);
-            }
-            catch (JobPersistenceException jpe)
-            {
-                if (retry % RetryableActionErrorLogThreshold == 0)
-                {
-                    await _schedulerSignaler.NotifySchedulerListenersError(
-                            $"An error occurred while {txCallback}",
-                            jpe,
-                            cancellationToken
-                        )
-                        .ConfigureAwait(false);
-                }
-            }
-            catch (Exception e)
-            {
-                _logger.LogError(e, "retryExecuteInNonManagedTXLock: RuntimeException {Message}", e.Message);
-            }
-
-            // retry every N seconds (the db connection must be failed)
-            await Task.Delay(DbRetryInterval, cancellationToken).ConfigureAwait(false);
-        }
-
-        throw new InvalidOperationException("JobStore is shutdown - aborting retry");
-    }
-
-
-    private async Task<T> ExecuteInNonManagedTxLock<T>(
         LockType lockType,
         Func<Task<T>> txCallback,
         CancellationToken cancellationToken = default
