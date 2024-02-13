@@ -62,49 +62,7 @@ internal class LockRepository : BaseRepository<Lock>
             {
                 session.StartTransaction();
 
-                var found = false;
-                {
-                    var filter = Builders<Lock>.Filter.Eq(x => x.InstanceName, InstanceName) &
-                                 Builders<Lock>.Filter.Eq(x => x.LockType, lockType);
-
-                    var update = Builders<Lock>.Update.Set(x => x.LockKey, ObjectId.GenerateNewId());
-
-
-                    var result = await Collection.FindOneAndUpdateAsync(
-                            session,
-                            filter,
-                            update,
-                            cancellationToken: cancellationToken
-                        )
-                        .ConfigureAwait(false);
-                    if (result != null)
-                    {
-                        found = true;
-                    }
-                }
-
-                if (!found)
-                {
-                    _logger.LogDebug(
-                        "Inserting new lock row for lock: {InstanceName}/{LockType} being obtained by task",
-                        InstanceName,
-                        lockType
-                    );
-
-                    await Collection.InsertOneAsync(
-                            session,
-                            new Lock
-                            {
-                                InstanceName = InstanceName,
-                                LockType = lockType,
-                                LockKey = ObjectId.GenerateNewId(),
-                            },
-                            cancellationToken: cancellationToken
-                        )
-                        .ConfigureAwait(false);
-                }
-
-                _logger.LogDebug("Acquired lock for {InstanceName}/{LockType}", InstanceName, lockType);
+                await TryAcquireLock(session, lockType, cancellationToken);
 
                 // obtained lock, go
                 return;
@@ -117,7 +75,7 @@ internal class LockRepository : BaseRepository<Lock>
                 }
 
                 _logger.LogDebug(
-                    "Lock  {InstanceName}/{LockType} was not obtained, will_retry={Retry}",
+                    "Lock {InstanceName}/{LockType} was not obtained, will_retry={Retry}",
                     InstanceName,
                     lockType,
                     count < maxRetryLocal
@@ -137,5 +95,48 @@ internal class LockRepository : BaseRepository<Lock>
                 throw new LockException($"Failure obtaining db row lock: {ex.Message}", ex);
             }
         } while (true);
+    }
+
+    public async Task TryAcquireLock(
+        IClientSessionHandle session,
+        LockType lockType,
+        CancellationToken cancellationToken
+    )
+    {
+        var filter = Builders<Lock>.Filter.Eq(x => x.InstanceName, InstanceName) &
+                     Builders<Lock>.Filter.Eq(x => x.LockType, lockType);
+
+        var update = Builders<Lock>.Update.Set(x => x.LockKey, ObjectId.GenerateNewId());
+
+        var result = await Collection.FindOneAndUpdateAsync(
+                session,
+                filter,
+                update,
+                cancellationToken: cancellationToken
+            )
+            .ConfigureAwait(false);
+
+        if (result == null)
+        {
+            _logger.LogDebug(
+                "Inserting new lock row for lock: {InstanceName}/{LockType} being obtained by task",
+                InstanceName,
+                lockType
+            );
+
+            await Collection.InsertOneAsync(
+                    session,
+                    new Lock
+                    {
+                        InstanceName = InstanceName,
+                        LockType = lockType,
+                        LockKey = ObjectId.GenerateNewId(),
+                    },
+                    cancellationToken: cancellationToken
+                )
+                .ConfigureAwait(false);
+        }
+
+        _logger.LogDebug("Acquired lock for {InstanceName}/{LockType}", InstanceName, lockType);
     }
 }
