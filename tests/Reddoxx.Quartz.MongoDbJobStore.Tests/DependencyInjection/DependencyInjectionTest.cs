@@ -19,7 +19,7 @@ public class DependencyInjectionTest
         var services = new ServiceCollection();
         services.AddLogging(builder => { builder.AddDebug(); });
 
-        services.AddSingleton<IMongoDbJobStoreConnectionFactory, LocalMongoDbJobStoreConnectionFactory>();
+        services.AddSingleton<IQuartzMongoDbJobStoreFactory, LocalQuartzMongoDbJobStoreFactory>();
         services.AddQuartz(
             q =>
             {

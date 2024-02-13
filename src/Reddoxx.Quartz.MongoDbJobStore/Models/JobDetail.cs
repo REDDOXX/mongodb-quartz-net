@@ -9,12 +9,6 @@ using Quartz;
 
 namespace Reddoxx.Quartz.MongoDbJobStore.Models;
 
-/*
- INSERT INTO
-    {0}JOB_DETAILS (SCHED_NAME, JOB_NAME, JOB_GROUP, DESCRIPTION, JOB_CLASS_NAME, IS_DURABLE, IS_NONCONCURRENT, IS_UPDATE_DATA, REQUESTS_RECOVERY, JOB_DATA)
-    VALUES(@schedulerName, @jobName, @jobGroup, @jobDescription, @jobType, @jobDurable, @jobVolatile, @jobStateful, @jobRequestsRecovery, @jobDataMap)
- */
-
 [UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
 internal class JobDetail
 {

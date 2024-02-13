@@ -34,7 +34,7 @@ internal class Lock
     public LockType LockType { get; set; }
 
     /// <summary>
-    /// Ttl for the lock document
+    /// Random lock key which is set when acquiring the lock with findOneAndUpdate.
     /// </summary>
-    public DateTime AcquiredAt { get; set; }
+    public ObjectId LockKey { get; set; }
 }

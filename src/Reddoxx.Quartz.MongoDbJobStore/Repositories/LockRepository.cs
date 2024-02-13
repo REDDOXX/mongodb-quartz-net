@@ -1,6 +1,9 @@
 using Microsoft.Extensions.Logging;
 
+using MongoDB.Bson;
 using MongoDB.Driver;
+
+using Quartz.Impl.AdoJobStore;
 
 using Reddoxx.Quartz.MongoDbJobStore.Models;
 using Reddoxx.Quartz.MongoDbJobStore.Util;
@@ -32,84 +35,105 @@ internal class LockRepository : BaseRepository<Lock>
                 }
             )
         );
-
-        // Auto-unlock after 30 seconds
-        await Collection.Indexes.CreateOneAsync(
-                new CreateIndexModel<Lock>(
-                    IndexBuilder.Ascending(@lock => @lock.AcquiredAt),
-                    new CreateIndexOptions
-                    {
-                        ExpireAfter = TimeSpan.FromSeconds(30),
-                    }
-                )
-            )
-            .ConfigureAwait(false);
     }
 
-
-    public async Task<bool> TryAcquireLock(LockType lockType, string instanceId)
+    public async Task AcquireLock(
+        IClientSessionHandle session,
+        LockType lockType,
+        CancellationToken cancellationToken = default
+    )
     {
-        _logger.LogTrace(
-            "Trying to acquire lock {LockType}/{InstanceName} on {InstanceId}",
-            lockType,
-            InstanceName,
-            instanceId
-        );
-        try
+        Exception? initCause = null;
+
+        // attempt lock two times (to work-around possible race conditions in inserting the lock row the first time running)
+        var count = 0;
+
+        // Configurable lock retry attempts
+        const int maxRetryLocal = 5;
+        var retryPeriodLocal = TimeSpan.FromSeconds(1);
+
+        _logger.LogDebug("Lock {InstanceName}/{LockType} tries to acquire lock", InstanceName, lockType);
+
+        do
         {
-            var @lock = new Lock
+            count++;
+
+            try
             {
-                InstanceName = InstanceName,
-                LockType = lockType,
-                AcquiredAt = DateTime.Now,
-            };
+                session.StartTransaction();
 
-            await Collection.InsertOneAsync(@lock).ConfigureAwait(false);
+                var found = false;
+                {
+                    var filter = Builders<Lock>.Filter.Eq(x => x.InstanceName, InstanceName) &
+                                 Builders<Lock>.Filter.Eq(x => x.LockType, lockType);
 
-            _logger.LogTrace(
-                "Acquired lock {LockType}/{InstanceName} on {InstanceId}",
-                lockType,
-                InstanceName,
-                instanceId
-            );
-            return true;
-        }
-        catch (MongoWriteException)
-        {
-            _logger.LogTrace(
-                "Failed to acquire lock {LockType}/{InstanceName} on {InstanceId}",
-                lockType,
-                InstanceName,
-                instanceId
-            );
-            return false;
-        }
-    }
+                    var update = Builders<Lock>.Update.Set(x => x.LockKey, ObjectId.GenerateNewId());
 
-    public async Task ReleaseLock(LockType lockType, string instanceId)
-    {
-        _logger.LogTrace(
-            "Releasing lock {LockType}/{InstanceName} on {InstanceId}",
-            lockType,
-            InstanceName,
-            instanceId
-        );
 
-        var filter = Builders<Lock>.Filter.Eq(x => x.InstanceName, InstanceName) &
-                     Builders<Lock>.Filter.Eq(x => x.LockType, lockType);
+                    var result = await Collection.FindOneAndUpdateAsync(
+                            session,
+                            filter,
+                            update,
+                            cancellationToken: cancellationToken
+                        )
+                        .ConfigureAwait(false);
+                    if (result != null)
+                    {
+                        found = true;
+                    }
+                }
 
-        var result = await Collection.DeleteOneAsync(filter).ConfigureAwait(false);
-        if (result.DeletedCount <= 0)
-        {
-            _logger.LogWarning(
-                "Failed to release lock {LockType}/{InstanceName} on {InstanceId}. You do not own the lock.",
-                lockType,
-                InstanceName,
-                instanceId
-            );
-            return;
-        }
+                if (!found)
+                {
+                    _logger.LogDebug(
+                        "Inserting new lock row for lock: '{LockType}' being obtained by task: {TaskId}",
+                        lockType,
+                        Task.CurrentId
+                    );
 
-        _logger.LogTrace("Released lock {LockType}/{InstanceName} on {InstanceId}", lockType, InstanceName, instanceId);
+                    await Collection.InsertOneAsync(
+                            session,
+                            new Lock
+                            {
+                                InstanceName = InstanceName,
+                                LockType = lockType,
+                                LockKey = ObjectId.GenerateNewId(),
+                            },
+                            cancellationToken: cancellationToken
+                        )
+                        .ConfigureAwait(false);
+                }
+
+                // obtained lock, go
+                return;
+            }
+            catch (Exception ex)
+            {
+                if (initCause == null)
+                {
+                    initCause = ex;
+                }
+
+                _logger.LogDebug(
+                    "Lock {LockType} was not obtained by {TaskId}, will_retry={Retry}",
+                    lockType,
+                    Task.CurrentId,
+                    count < maxRetryLocal
+                );
+
+                await session.AbortTransactionAsync(cancellationToken).ConfigureAwait(false);
+
+                if (count < maxRetryLocal)
+                {
+                    // pause a bit to give another thread some time to commit the insert of the new lock row
+                    await Task.Delay(retryPeriodLocal, cancellationToken).ConfigureAwait(false);
+
+                    // try again ...
+                    continue;
+                }
+
+                throw new LockException("Failure obtaining db row lock: " + ex.Message, ex);
+            }
+        } while (true);
     }
 }

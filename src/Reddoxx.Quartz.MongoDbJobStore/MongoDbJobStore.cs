@@ -41,7 +41,7 @@ public class MongoDbJobStore : IJobStore
 
     private readonly ILogger _logger = LogProvider.CreateLogger<MongoDbJobStore>();
 
-    private readonly IMongoDbJobStoreConnectionFactory _connectionFactory;
+    private readonly IQuartzMongoDbJobStoreFactory _factory;
     private readonly IMongoDatabase _database;
 
     private ISchedulerSignaler _schedulerSignaler = null!;
@@ -171,12 +171,12 @@ public class MongoDbJobStore : IJobStore
         JobStoreClassMap.RegisterClassMaps();
     }
 
-    public MongoDbJobStore(ILoggerFactory loggerFactory, IMongoDbJobStoreConnectionFactory connectionFactory)
+    public MongoDbJobStore(ILoggerFactory loggerFactory, IQuartzMongoDbJobStoreFactory factory)
     {
         ObjectSerializer.Initialize();
 
-        _connectionFactory = connectionFactory;
-        _database = _connectionFactory.GetDatabase();
+        _factory = factory;
+        _database = _factory.GetDatabase();
 
         LogProvider.SetLogProvider(loggerFactory);
     }
@@ -203,7 +203,7 @@ public class MongoDbJobStore : IJobStore
         _schedulerRepository = new SchedulerRepository(_database, InstanceName, CollectionPrefix);
         _triggerRepository = new TriggerRepository(_database, InstanceName, CollectionPrefix);
 
-        _logger.LogTrace("Validating indices...");
+        _logger.LogTrace("Validating quartz-store indices...");
         var repositories = new List<IRepository>
         {
             _schedulerRepository,
@@ -326,7 +326,6 @@ public class MongoDbJobStore : IJobStore
         // This is not implemented in the core ADO stuff, so we won't implement it here either
         throw new NotSupportedException();
     }
-
 
     public Task<bool> IsTriggerGroupPaused(string groupName, CancellationToken token = default)
     {
@@ -2447,7 +2446,7 @@ public class MongoDbJobStore : IJobStore
     #endregion
 
 
-    private void LogWarnIfNonZero(int val, string? message, params object?[] args)
+    private void LogWarnIfNonZero(int val, [StructuredMessageTemplate] string? message, params object?[] args)
     {
         if (val > 0)
         {
@@ -2524,39 +2523,18 @@ public class MongoDbJobStore : IJobStore
         CancellationToken cancellationToken = default
     )
     {
+        using var session = await _database.Client.StartSessionAsync(cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+
         try
         {
-            while (true)
-            {
-                await _pendingLocksSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
-                try
-                {
-                    if (await _lockRepository.TryAcquireLock(lockType, InstanceId).ConfigureAwait(false))
-                    {
-                        break;
-                    }
-                }
-                finally
-                {
-                    _pendingLocksSemaphore.Release();
-                }
-
-                await Task.Delay(SleepThreshold, cancellationToken).ConfigureAwait(false);
-            }
+            await _lockRepository.AcquireLock(session, lockType, cancellationToken).ConfigureAwait(false);
 
             return await txCallback.Invoke().ConfigureAwait(false);
         }
         finally
         {
-            await _pendingLocksSemaphore.WaitAsync(cancellationToken);
-            try
-            {
-                await _lockRepository.ReleaseLock(lockType, InstanceId).ConfigureAwait(false);
-            }
-            finally
-            {
-                _pendingLocksSemaphore.Release();
-            }
+            await session.CommitTransactionAsync(cancellationToken).ConfigureAwait(false);
         }
     }
 
