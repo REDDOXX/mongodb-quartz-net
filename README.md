@@ -1,7 +1,7 @@
 MongoDB Job Store for Quartz.NET
 ================================
 
-![NuGet Version](https://img.shields.io/nuget/v/Reddoxx.Quartz.MongoDbJobStore)
+[![NuGet Version](https://img.shields.io/nuget/v/Reddoxx.Quartz.MongoDbJobStore)](https://www.nuget.org/packages/Reddoxx.Quartz.MongoDbJobStore)
 
 Fork of the awesome codebase of [@glucaci](https://github.com/glucaci/mongodb-quartz-net) with multiple tweaks:
 
