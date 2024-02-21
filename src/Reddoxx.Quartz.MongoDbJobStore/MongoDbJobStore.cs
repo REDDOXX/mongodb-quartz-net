@@ -2105,10 +2105,12 @@ public class MongoDbJobStore : IJobStore
                     recovered = true;
                 }
             }
-        }
-        finally
-        {
+
             await session.CommitTransactionAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            await session.AbortTransactionAsync(cancellationToken).ConfigureAwait(false);
         }
 
         _firstCheckIn = false;
@@ -2499,11 +2501,16 @@ public class MongoDbJobStore : IJobStore
         {
             await _lockRepository.AcquireLock(session, lockType, cancellationToken).ConfigureAwait(false);
 
-            return await txCallback.Invoke().ConfigureAwait(false);
-        }
-        finally
-        {
+            var result = await txCallback.Invoke().ConfigureAwait(false);
+
             await session.CommitTransactionAsync(cancellationToken).ConfigureAwait(false);
+
+            return result;
+        }
+        catch
+        {
+            await session.AbortTransactionAsync(cancellationToken).ConfigureAwait(false);
+            throw;
         }
     }
 
