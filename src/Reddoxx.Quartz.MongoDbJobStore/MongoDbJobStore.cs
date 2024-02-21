@@ -2106,7 +2106,14 @@ public class MongoDbJobStore : IJobStore
                 }
             }
 
-            await session.CommitTransactionAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                await session.CommitTransactionAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to commit transaction {Message}", ex.Message);
+            }
         }
         catch
         {
@@ -2503,7 +2510,14 @@ public class MongoDbJobStore : IJobStore
 
             var result = await txCallback.Invoke().ConfigureAwait(false);
 
-            await session.CommitTransactionAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                await session.CommitTransactionAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to commit transaction {Message}", ex.Message);
+            }
 
             return result;
         }
