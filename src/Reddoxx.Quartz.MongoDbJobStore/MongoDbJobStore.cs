@@ -27,8 +27,6 @@ namespace Reddoxx.Quartz.MongoDbJobStore;
 [PublicAPI]
 public class MongoDbJobStore : IJobStore
 {
-    private static readonly TimeSpan SleepThreshold = TimeSpan.FromMilliseconds(1000);
-
     internal static readonly JsonObjectSerializer ObjectSerializer = new();
 
     private const string KeySignalChangeForTxCompletion = "sigChangeForTxCompletion";
@@ -2063,61 +2061,71 @@ public class MongoDbJobStore : IJobStore
     {
         var recovered = false;
 
-        using var session = await _database.Client.StartSessionAsync(cancellationToken: cancellationToken)
-            .ConfigureAwait(false);
-
-        session.StartTransaction();
 
         try
         {
-            // Other than the first time, always checkin first to make sure there is
-            // work to be done before we acquire the lock (since that is expensive,
-            // and is almost never necessary).  This must be done in a separate
-            // transaction to prevent a deadlock under recovery conditions.
-            IReadOnlyList<Scheduler>? failedRecords = null;
-            if (!_firstCheckIn)
-            {
-                failedRecords = await ClusterCheckIn().ConfigureAwait(false);
-            }
+            await _pendingLocksSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
 
-            if (_firstCheckIn || failedRecords != null && failedRecords.Count > 0)
-            {
-                await _lockRepository.TryAcquireLock(session, LockType.StateAccess, cancellationToken)
-                    .ConfigureAwait(false);
+            using var session = await _database.Client.StartSessionAsync(cancellationToken: cancellationToken)
+                .ConfigureAwait(false);
 
-                // Now that we own the lock, make sure we still have work to do.
-                // The first time through, we also need to make sure we update/create our state record
-                if (_firstCheckIn)
-                {
-                    failedRecords = await ClusterCheckIn().ConfigureAwait(false);
-                }
-                else
-                {
-                    failedRecords = await FindFailedInstances().ConfigureAwait(false);
-                }
-
-                if (failedRecords.Count > 0)
-                {
-                    await _lockRepository.TryAcquireLock(session, LockType.TriggerAccess, cancellationToken)
-                        .ConfigureAwait(false);
-
-                    await ClusterRecover(failedRecords).ConfigureAwait(false);
-                    recovered = true;
-                }
-            }
+            session.StartTransaction();
 
             try
             {
-                await session.CommitTransactionAsync(cancellationToken).ConfigureAwait(false);
+                // Other than the first time, always checkin first to make sure there is
+                // work to be done before we acquire the lock (since that is expensive,
+                // and is almost never necessary).  This must be done in a separate
+                // transaction to prevent a deadlock under recovery conditions.
+                IReadOnlyList<Scheduler>? failedRecords = null;
+                if (!_firstCheckIn)
+                {
+                    failedRecords = await ClusterCheckIn().ConfigureAwait(false);
+                }
+
+                if (_firstCheckIn || failedRecords != null && failedRecords.Count > 0)
+                {
+                    await _lockRepository.TryAcquireLock(session, LockType.StateAccess, cancellationToken)
+                        .ConfigureAwait(false);
+
+                    // Now that we own the lock, make sure we still have work to do.
+                    // The first time through, we also need to make sure we update/create our state record
+                    if (_firstCheckIn)
+                    {
+                        failedRecords = await ClusterCheckIn().ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        failedRecords = await FindFailedInstances().ConfigureAwait(false);
+                    }
+
+                    if (failedRecords.Count > 0)
+                    {
+                        await _lockRepository.TryAcquireLock(session, LockType.TriggerAccess, cancellationToken)
+                            .ConfigureAwait(false);
+
+                        await ClusterRecover(failedRecords).ConfigureAwait(false);
+                        recovered = true;
+                    }
+                }
+
+                try
+                {
+                    await session.CommitTransactionAsync(cancellationToken).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to commit transaction {Message}", ex.Message);
+                }
             }
-            catch (Exception ex)
+            catch
             {
-                _logger.LogWarning(ex, "Failed to commit transaction {Message}", ex.Message);
+                await session.AbortTransactionAsync(cancellationToken).ConfigureAwait(false);
             }
         }
-        catch
+        finally
         {
-            await session.AbortTransactionAsync(cancellationToken).ConfigureAwait(false);
+            _pendingLocksSemaphore.Release();
         }
 
         _firstCheckIn = false;
@@ -2501,30 +2509,39 @@ public class MongoDbJobStore : IJobStore
         CancellationToken cancellationToken = default
     )
     {
-        using var session = await _database.Client.StartSessionAsync(cancellationToken: cancellationToken)
-            .ConfigureAwait(false);
-
         try
         {
-            await _lockRepository.AcquireLock(session, lockType, cancellationToken).ConfigureAwait(false);
+            await _pendingLocksSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
 
-            var result = await txCallback.Invoke().ConfigureAwait(false);
+            using var session = await _database.Client.StartSessionAsync(cancellationToken: cancellationToken)
+                .ConfigureAwait(false);
+
+            await _lockRepository.AcquireLock(session, lockType, cancellationToken).ConfigureAwait(false);
 
             try
             {
-                await session.CommitTransactionAsync(cancellationToken).ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to commit transaction {Message}", ex.Message);
-            }
+                var result = await txCallback.Invoke().ConfigureAwait(false);
 
-            return result;
+                try
+                {
+                    await session.CommitTransactionAsync(cancellationToken).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to commit transaction {Message}", ex.Message);
+                }
+
+                return result;
+            }
+            catch
+            {
+                await session.AbortTransactionAsync(cancellationToken).ConfigureAwait(false);
+                throw;
+            }
         }
-        catch
+        finally
         {
-            await session.AbortTransactionAsync(cancellationToken).ConfigureAwait(false);
-            throw;
+            _pendingLocksSemaphore.Release();
         }
     }
 
