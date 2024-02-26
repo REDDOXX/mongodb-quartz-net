@@ -31,6 +31,7 @@
 		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.0" />
 		<PackageReference Include="MongoDB.Driver" Version="2.24.0" />
 		<PackageReference Include="Quartz" Version="3.8.1" />
+		<PackageReference Include="Quartz.Extensions.DependencyInjection" Version="3.8.1" />
 		<PackageReference Include="Quartz.Serialization.Json" Version="3.8.1" />
 	</ItemGroup>
 

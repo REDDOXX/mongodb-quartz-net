@@ -120,7 +120,7 @@ internal class Redlock
                      * precision, which is 1 millisecond, plus 1 millisecond min drift
                      * for small TTLs.
                      */
-                    var drift = Convert.ToInt32((ttl.TotalMilliseconds * ClockDriveFactor) + 2);
+                    var drift = (int)(ttl.TotalMilliseconds * ClockDriveFactor + 2);
                     var validityTime = ttl - (DateTime.Now - startTime) - new TimeSpan(0, 0, 0, 0, drift);
 
                     if (n >= Quorum && validityTime.TotalMilliseconds > 0)

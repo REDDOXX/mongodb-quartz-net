@@ -11,4 +11,8 @@
 
 	</ItemGroup>
 
+	<ItemGroup>
+	  <ProjectReference Include="..\Reddoxx.Quartz.MongoDbJobStore\Reddoxx.Quartz.MongoDbJobStore.csproj" />
+	</ItemGroup>
+
 </Project>
