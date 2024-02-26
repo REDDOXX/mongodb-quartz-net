@@ -12,6 +12,9 @@ namespace Reddoxx.Quartz.MongoDbJobStore.ServiceStackRedis;
 /// <summary>
 /// Quartz locking manager based upon service-stacks redis connector
 /// </summary>
+/// <remarks>
+/// TODO: This requires redlock support by the servicestack connector
+/// </remarks>
 [PublicAPI]
 public class ServiceStackRedisQuartzLockingManager : IQuartzJobStoreLockingManager
 {
@@ -34,12 +37,12 @@ public class ServiceStackRedisQuartzLockingManager : IQuartzJobStoreLockingManag
         }
 
         public async Task TryAcquireLock(
-            string schedulerName,
+            string instanceName,
             QuartzLockType lockType,
             CancellationToken cancellationToken
         )
         {
-            var key = CreateKey(schedulerName, lockType);
+            var key = CreateKey(instanceName, lockType);
 
             try
             {
@@ -109,7 +112,8 @@ public class ServiceStackRedisQuartzLockingManager : IQuartzJobStoreLockingManag
 
         var key = CreateKey(instanceName, lockType);
 
-        await using var _ = await client.AcquireLockAsync(key, token: cancellationToken).ConfigureAwait(false);
+        await using var _ = await client.AcquireLockAsync(key, TimeSpan.FromSeconds(10), cancellationToken)
+            .ConfigureAwait(false);
 
         return await txCallback.Invoke().ConfigureAwait(false);
     }

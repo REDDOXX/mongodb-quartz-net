@@ -42,6 +42,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<ProjectReference Include="..\..\src\Reddoxx.Quartz.MongoDbJobStore.Redlock\Reddoxx.Quartz.MongoDbJobStore.Redlock.csproj" />
 		<ProjectReference Include="..\..\src\Reddoxx.Quartz.MongoDbJobStore.ServiceStackRedis\Reddoxx.Quartz.MongoDbJobStore.ServiceStackRedis.csproj" />
 		<ProjectReference Include="..\..\src\Reddoxx.Quartz.MongoDbJobStore\Reddoxx.Quartz.MongoDbJobStore.csproj" />
 	</ItemGroup>

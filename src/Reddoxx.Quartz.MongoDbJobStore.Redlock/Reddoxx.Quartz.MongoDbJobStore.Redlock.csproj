@@ -1,13 +1,42 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-  </PropertyGroup>
+	<PropertyGroup>
+		<TargetFramework>net8.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
 
-  <ItemGroup>
-    <PackageReference Include="StackExchange.Redis" Version="2.7.20" />
-  </ItemGroup>
+		<GenerateAssemblyTitleAttribute>false</GenerateAssemblyTitleAttribute>
+		<GenerateAssemblyDescriptionAttribute>false</GenerateAssemblyDescriptionAttribute>
+		<GenerateAssemblyCompanyAttribute>false</GenerateAssemblyCompanyAttribute>
+		<GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
+		<GenerateAssemblyCopyrightAttribute>false</GenerateAssemblyCopyrightAttribute>
+		<GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
+		<GenerateAssemblyFileVersionAttribute>false</GenerateAssemblyFileVersionAttribute>
+
+		<Authors>ItsClemi</Authors>
+		<RepositoryUrl>https://github.com/REDDOXX/mongodb-quartz-net</RepositoryUrl>
+		<RepositoryType>GitHub</RepositoryType>
+		<PackageTags>Quartz.NET Store JobStore MongoDB</PackageTags>
+		<PackageProjectUrl>https://github.com/REDDOXX/mongodb-quartz-net</PackageProjectUrl>
+
+		<Title>Reddoxx.Quartz.MongoDbJobStore.Redlock</Title>
+		<Description>Redlock locking support for quartz-mongodb-job-store</Description>
+
+		<PackageLicenseFile>LICENSE.txt</PackageLicenseFile>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="DistributedLock.Redis" Version="1.0.2" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\Reddoxx.Quartz.MongoDbJobStore\Reddoxx.Quartz.MongoDbJobStore.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Include="../../LICENSE.txt" Pack="true" PackagePath="/" />
+		<None Include="../../README.md" Pack="true" PackagePath="/" />
+	</ItemGroup>
 
 </Project>

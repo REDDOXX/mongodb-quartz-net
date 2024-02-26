@@ -33,7 +33,7 @@ internal class MongoDbLockingManager : IQuartzJobStoreLockingManager
         }
 
         public async Task TryAcquireLock(
-            string schedulerName,
+            string instanceName,
             QuartzLockType lockType,
             CancellationToken cancellationToken
         )

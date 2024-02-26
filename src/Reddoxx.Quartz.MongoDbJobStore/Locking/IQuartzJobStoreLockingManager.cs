@@ -6,7 +6,7 @@ public interface IQuartzJobStoreLockingManager
 {
     public interface ILockContext : IAsyncDisposable
     {
-        Task TryAcquireLock(string schedulerName, QuartzLockType lockType, CancellationToken cancellationToken);
+        Task TryAcquireLock(string instanceName, QuartzLockType lockType, CancellationToken cancellationToken);
 
         Task CommitTransaction(CancellationToken cancellationToken);
 

@@ -3,17 +3,21 @@ using System.Reflection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 using Quartz;
 
 using Reddoxx.Quartz.MongoDbJobStore.Database;
 using Reddoxx.Quartz.MongoDbJobStore.Extensions;
 using Reddoxx.Quartz.MongoDbJobStore.Locking;
+using Reddoxx.Quartz.MongoDbJobStore.Redlock;
 using Reddoxx.Quartz.MongoDbJobStore.ServiceStackRedis;
 using Reddoxx.Quartz.MongoDbJobStore.Tests.Options;
 using Reddoxx.Quartz.MongoDbJobStore.Tests.Persistence;
 
 using ServiceStack.Redis;
+
+using StackExchange.Redis;
 
 namespace Reddoxx.Quartz.MongoDbJobStore.Tests;
 
@@ -31,7 +35,7 @@ public abstract class BaseStoreTests
         return await schedulerFactory.GetScheduler();
     }
 
-    private static ServiceProvider CreateServiceProvider(string instanceName, bool clustered)
+    protected static ServiceProvider CreateServiceProvider(string instanceName, bool clustered)
     {
         var configuration = new ConfigurationBuilder()
             // 
@@ -48,6 +52,7 @@ public abstract class BaseStoreTests
         services.AddOptions<RedisOptions>().Bind(configuration.GetSection("Redis"));
 
 
+#if SERVICESTACK
         // ServiceStack 
         services.AddSingleton<IRedisClientsManager>(
             sp =>
@@ -60,8 +65,18 @@ public abstract class BaseStoreTests
         services.AddSingleton(sp => (IRedisClientsManagerAsync)sp.GetRequiredService<IRedisClientsManager>());
 
         services.AddSingleton<IQuartzJobStoreLockingManager, ServiceStackRedisQuartzLockingManager>();
+#endif
 
-        // ^--
+        services.AddSingleton<IConnectionMultiplexer>(
+            sp =>
+            {
+                var options = sp.GetRequiredService<IOptions<RedisOptions>>().Value;
+
+                return ConnectionMultiplexer.Connect(options.ConnectionString);
+            }
+        );
+
+        services.AddSingleton<IQuartzJobStoreLockingManager, DistributedLocksQuartzLockingManager>();
 
         services.AddSingleton<IQuartzMongoDbJobStoreFactory, LocalQuartzMongoDbJobStoreFactory>();
         services.AddQuartz(
