@@ -2,6 +2,7 @@ using System.Globalization;
 
 using JetBrains.Annotations;
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 using MongoDB.Driver;
@@ -42,8 +43,9 @@ public class MongoDbJobStore : IJobStore
 
     private readonly IQuartzMongoDbJobStoreFactory _factory;
     private readonly IMongoDatabase _database;
+    private readonly IServiceProvider _serviceProvider;
 
-    private readonly IQuartzJobStoreLockingManager _lockingManager;
+    private IQuartzJobStoreLockingManager _lockingManager = null!;
 
     private ISchedulerSignaler _schedulerSignaler = null!;
 
@@ -172,7 +174,11 @@ public class MongoDbJobStore : IJobStore
         JobStoreClassMap.RegisterClassMaps();
     }
 
-    public MongoDbJobStore(ILoggerFactory loggerFactory, IQuartzMongoDbJobStoreFactory factory)
+    public MongoDbJobStore(
+        ILoggerFactory loggerFactory,
+        IQuartzMongoDbJobStoreFactory factory,
+        IServiceProvider serviceProvider
+    )
     {
         LogProvider.SetLogProvider(loggerFactory);
 
@@ -180,6 +186,8 @@ public class MongoDbJobStore : IJobStore
 
         _factory = factory;
         _database = _factory.GetDatabase();
+
+        _serviceProvider = serviceProvider;
     }
 
 
@@ -203,6 +211,14 @@ public class MongoDbJobStore : IJobStore
         _pausedTriggerGroupRepository = new PausedTriggerGroupRepository(_database, InstanceName, CollectionPrefix);
         _schedulerRepository = new SchedulerRepository(_database, InstanceName, CollectionPrefix);
         _triggerRepository = new TriggerRepository(_database, InstanceName, CollectionPrefix);
+
+        // Try to resolve the locking manager, if none has been registered - default to the mongodb tx one.
+        _lockingManager = _serviceProvider.GetService<IQuartzJobStoreLockingManager>() ??
+                          new MongoDbLockingManager(
+                              _database.Client,
+                              _lockRepository,
+                              _serviceProvider.GetRequiredService<ILogger<MongoDbLockingManager>>()
+                          );
 
         _logger.LogTrace("Validating quartz-store indices...");
         var repositories = new List<IRepository>

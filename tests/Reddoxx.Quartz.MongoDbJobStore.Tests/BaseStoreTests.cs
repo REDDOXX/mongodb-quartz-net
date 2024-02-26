@@ -1,3 +1,6 @@
+using System.Reflection;
+
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -5,7 +8,12 @@ using Quartz;
 
 using Reddoxx.Quartz.MongoDbJobStore.Database;
 using Reddoxx.Quartz.MongoDbJobStore.Extensions;
+using Reddoxx.Quartz.MongoDbJobStore.Locking;
+using Reddoxx.Quartz.MongoDbJobStore.ServiceStackRedis;
+using Reddoxx.Quartz.MongoDbJobStore.Tests.Options;
 using Reddoxx.Quartz.MongoDbJobStore.Tests.Persistence;
+
+using ServiceStack.Redis;
 
 namespace Reddoxx.Quartz.MongoDbJobStore.Tests;
 
@@ -25,8 +33,35 @@ public abstract class BaseStoreTests
 
     private static ServiceProvider CreateServiceProvider(string instanceName, bool clustered)
     {
+        var configuration = new ConfigurationBuilder()
+            // 
+            .AddUserSecrets(Assembly.GetExecutingAssembly(), true)
+            .Build();
+
+
         var services = new ServiceCollection();
         services.AddLogging(builder => { builder.AddDebug(); });
+
+        services.AddSingleton<IConfiguration>(configuration);
+
+        services.AddOptions<MongoDbOptions>().Bind(configuration.GetSection("MongoDb"));
+        services.AddOptions<RedisOptions>().Bind(configuration.GetSection("Redis"));
+
+
+        // ServiceStack 
+        services.AddSingleton<IRedisClientsManager>(
+            sp =>
+            {
+                var redisOptions = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<RedisOptions>>().Value;
+
+                return new RedisManagerPool(redisOptions.ConnectionString);
+            }
+        );
+        services.AddSingleton(sp => (IRedisClientsManagerAsync)sp.GetRequiredService<IRedisClientsManager>());
+
+        services.AddSingleton<IQuartzJobStoreLockingManager, ServiceStackRedisQuartzLockingManager>();
+
+        // ^--
 
         services.AddSingleton<IQuartzMongoDbJobStoreFactory, LocalQuartzMongoDbJobStoreFactory>();
         services.AddQuartz(

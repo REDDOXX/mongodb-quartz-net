@@ -1,18 +1,21 @@
+using Microsoft.Extensions.Options;
+
 using MongoDB.Driver;
 
 using Reddoxx.Quartz.MongoDbJobStore.Database;
+using Reddoxx.Quartz.MongoDbJobStore.Tests.Options;
 
 namespace Reddoxx.Quartz.MongoDbJobStore.Tests.Persistence;
 
 internal sealed class LocalQuartzMongoDbJobStoreFactory : IQuartzMongoDbJobStoreFactory
 {
-    private const string LocalConnectionString = "mongodb://localhost/quartz";
-
     private readonly IMongoDatabase _database;
 
-    public LocalQuartzMongoDbJobStoreFactory()
+    public LocalQuartzMongoDbJobStoreFactory(IOptions<MongoDbOptions> options)
     {
-        var url = new MongoUrl(LocalConnectionString);
+        var mongoDbOptions = options.Value;
+
+        var url = new MongoUrl(mongoDbOptions.ConnectionString);
         var client = new MongoClient(url);
 
         _database = client.GetDatabase(url.DatabaseName);

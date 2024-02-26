@@ -30,9 +30,9 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "workflows", "workflows", "{
 		.github\workflows\dotnet.yml = .github\workflows\dotnet.yml
 	EndProjectSection
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Reddoxx.Quartz.MongoDbJobStore.Redlock", "src\Reddoxx.Quartz.MongoDbJobStore.Redlock\Reddoxx.Quartz.MongoDbJobStore.Redlock.csproj", "{05EEBEC9-7234-409E-A1BC-0CA873BBC47A}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Reddoxx.Quartz.MongoDbJobStore.Redlock", "src\Reddoxx.Quartz.MongoDbJobStore.Redlock\Reddoxx.Quartz.MongoDbJobStore.Redlock.csproj", "{05EEBEC9-7234-409E-A1BC-0CA873BBC47A}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Reddoxx.Quartz.MongoDbJobStore.ServiceStackRedis", "src\Reddoxx.Quartz.MongoDbJobStore.ServiceStackRedis\Reddoxx.Quartz.MongoDbJobStore.ServiceStackRedis.csproj", "{413813DA-21F0-4687-9460-321110968042}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Reddoxx.Quartz.MongoDbJobStore.ServiceStackRedis", "src\Reddoxx.Quartz.MongoDbJobStore.ServiceStackRedis\Reddoxx.Quartz.MongoDbJobStore.ServiceStackRedis.csproj", "{413813DA-21F0-4687-9460-321110968042}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
