@@ -2,6 +2,7 @@ using System.Globalization;
 
 using JetBrains.Annotations;
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 using MongoDB.Driver;
@@ -14,6 +15,7 @@ using Quartz.Simpl;
 using Quartz.Spi;
 
 using Reddoxx.Quartz.MongoDbJobStore.Database;
+using Reddoxx.Quartz.MongoDbJobStore.Locking;
 using Reddoxx.Quartz.MongoDbJobStore.Models;
 using Reddoxx.Quartz.MongoDbJobStore.Repositories;
 using Reddoxx.Quartz.MongoDbJobStore.Serializers;
@@ -27,8 +29,6 @@ namespace Reddoxx.Quartz.MongoDbJobStore;
 [PublicAPI]
 public class MongoDbJobStore : IJobStore
 {
-    private static readonly TimeSpan SleepThreshold = TimeSpan.FromMilliseconds(1000);
-
     internal static readonly JsonObjectSerializer ObjectSerializer = new();
 
     private const string KeySignalChangeForTxCompletion = "sigChangeForTxCompletion";
@@ -43,6 +43,9 @@ public class MongoDbJobStore : IJobStore
 
     private readonly IQuartzMongoDbJobStoreFactory _factory;
     private readonly IMongoDatabase _database;
+    private readonly IServiceProvider _serviceProvider;
+
+    private IQuartzJobStoreLockingManager _lockingManager = null!;
 
     private ISchedulerSignaler _schedulerSignaler = null!;
 
@@ -171,7 +174,11 @@ public class MongoDbJobStore : IJobStore
         JobStoreClassMap.RegisterClassMaps();
     }
 
-    public MongoDbJobStore(ILoggerFactory loggerFactory, IQuartzMongoDbJobStoreFactory factory)
+    public MongoDbJobStore(
+        ILoggerFactory loggerFactory,
+        IQuartzMongoDbJobStoreFactory factory,
+        IServiceProvider serviceProvider
+    )
     {
         LogProvider.SetLogProvider(loggerFactory);
 
@@ -179,6 +186,8 @@ public class MongoDbJobStore : IJobStore
 
         _factory = factory;
         _database = _factory.GetDatabase();
+
+        _serviceProvider = serviceProvider;
     }
 
 
@@ -202,6 +211,14 @@ public class MongoDbJobStore : IJobStore
         _pausedTriggerGroupRepository = new PausedTriggerGroupRepository(_database, InstanceName, CollectionPrefix);
         _schedulerRepository = new SchedulerRepository(_database, InstanceName, CollectionPrefix);
         _triggerRepository = new TriggerRepository(_database, InstanceName, CollectionPrefix);
+
+        // Try to resolve the locking manager, if none has been registered - default to the mongodb tx one.
+        _lockingManager = _serviceProvider.GetService<IQuartzJobStoreLockingManager>() ??
+                          new MongoDbLockingManager(
+                              _database.Client,
+                              _lockRepository,
+                              _serviceProvider.GetRequiredService<ILogger<MongoDbLockingManager>>()
+                          );
 
         _logger.LogTrace("Validating quartz-store indices...");
         var repositories = new List<IRepository>
@@ -298,7 +315,7 @@ public class MongoDbJobStore : IJobStore
         try
         {
             await ExecuteInTx(
-                    LockType.TriggerAccess,
+                    QuartzLockType.TriggerAccess,
                     async () =>
                     {
                         await StoreJobInternal(newJob, false).ConfigureAwait(false);
@@ -338,7 +355,7 @@ public class MongoDbJobStore : IJobStore
     {
         try
         {
-            return ExecuteInTx(LockType.TriggerAccess, () => StoreJobInternal(newJob, replaceExisting), token);
+            return ExecuteInTx(QuartzLockType.TriggerAccess, () => StoreJobInternal(newJob, replaceExisting), token);
         }
         catch (Exception ex)
         {
@@ -356,7 +373,7 @@ public class MongoDbJobStore : IJobStore
         try
         {
             return ExecuteInTx(
-                LockType.TriggerAccess,
+                QuartzLockType.TriggerAccess,
                 async () =>
                 {
                     foreach (var (job, triggers) in triggersAndJobs)
@@ -395,7 +412,7 @@ public class MongoDbJobStore : IJobStore
     {
         try
         {
-            return ExecuteInTx(LockType.TriggerAccess, () => RemoveJobInternal(jobKey), token);
+            return ExecuteInTx(QuartzLockType.TriggerAccess, () => RemoveJobInternal(jobKey), token);
         }
         catch (Exception ex)
         {
@@ -409,7 +426,7 @@ public class MongoDbJobStore : IJobStore
         try
         {
             return ExecuteInTx(
-                LockType.TriggerAccess,
+                QuartzLockType.TriggerAccess,
                 async () =>
                 {
                     var result = true;
@@ -446,7 +463,7 @@ public class MongoDbJobStore : IJobStore
     )
     {
         return ExecuteInTx(
-            LockType.TriggerAccess,
+            QuartzLockType.TriggerAccess,
             () => StoreTriggerInternal(newTrigger, null, replaceExisting, Models.TriggerState.Waiting, false, false),
             cancellationToken
         );
@@ -456,7 +473,7 @@ public class MongoDbJobStore : IJobStore
     {
         try
         {
-            return ExecuteInTx(LockType.TriggerAccess, () => RemoveTriggerInternal(triggerKey), token);
+            return ExecuteInTx(QuartzLockType.TriggerAccess, () => RemoveTriggerInternal(triggerKey), token);
         }
         catch (Exception ex)
         {
@@ -470,7 +487,7 @@ public class MongoDbJobStore : IJobStore
         try
         {
             return ExecuteInTx(
-                LockType.TriggerAccess,
+                QuartzLockType.TriggerAccess,
                 async () =>
                 {
                     var result = true;
@@ -500,7 +517,11 @@ public class MongoDbJobStore : IJobStore
     {
         try
         {
-            return ExecuteInTx(LockType.TriggerAccess, () => ReplaceTriggerInternal(triggerKey, newTrigger), token);
+            return ExecuteInTx(
+                QuartzLockType.TriggerAccess,
+                () => ReplaceTriggerInternal(triggerKey, newTrigger),
+                token
+            );
         }
         catch (Exception ex)
         {
@@ -539,7 +560,7 @@ public class MongoDbJobStore : IJobStore
         try
         {
             return ExecuteInTx(
-                LockType.TriggerAccess,
+                QuartzLockType.TriggerAccess,
                 async () =>
                 {
                     await _calendarRepository.DeleteAll().ConfigureAwait(false);
@@ -570,7 +591,7 @@ public class MongoDbJobStore : IJobStore
         try
         {
             return ExecuteInTx(
-                LockType.TriggerAccess,
+                QuartzLockType.TriggerAccess,
                 () => StoreCalendarInternal(name, calendar, replaceExisting, updateTriggers, cancellationToken),
                 cancellationToken
             );
@@ -586,7 +607,7 @@ public class MongoDbJobStore : IJobStore
     {
         try
         {
-            return ExecuteInTx(LockType.TriggerAccess, () => RemoveCalendarInternal(calName), token);
+            return ExecuteInTx(QuartzLockType.TriggerAccess, () => RemoveCalendarInternal(calName), token);
         }
         catch (Exception ex)
         {
@@ -696,7 +717,7 @@ public class MongoDbJobStore : IJobStore
         try
         {
             return ExecuteInTx(
-                LockType.TriggerAccess,
+                QuartzLockType.TriggerAccess,
                 async () =>
                 {
                     var newState = Models.TriggerState.Waiting;
@@ -731,7 +752,7 @@ public class MongoDbJobStore : IJobStore
     {
         try
         {
-            return ExecuteInTx(LockType.TriggerAccess, () => PauseTriggerInternal(triggerKey), token);
+            return ExecuteInTx(QuartzLockType.TriggerAccess, () => PauseTriggerInternal(triggerKey), token);
         }
         catch (Exception ex)
         {
@@ -747,7 +768,7 @@ public class MongoDbJobStore : IJobStore
     {
         try
         {
-            return ExecuteInTx(LockType.TriggerAccess, () => PauseTriggerGroupInternal(matcher), token);
+            return ExecuteInTx(QuartzLockType.TriggerAccess, () => PauseTriggerGroupInternal(matcher), token);
         }
         catch (Exception ex)
         {
@@ -761,7 +782,7 @@ public class MongoDbJobStore : IJobStore
         try
         {
             return ExecuteInTx(
-                LockType.TriggerAccess,
+                QuartzLockType.TriggerAccess,
                 async () =>
                 {
                     var triggers = await GetTriggersForJob(jobKey, token).ConfigureAwait(false);
@@ -786,7 +807,7 @@ public class MongoDbJobStore : IJobStore
         try
         {
             return ExecuteInTx<IReadOnlyCollection<string>>(
-                LockType.TriggerAccess,
+                QuartzLockType.TriggerAccess,
                 async () =>
                 {
                     var jobKeys = await _jobDetailRepository.GetJobsKeys(matcher).ConfigureAwait(false);
@@ -820,7 +841,7 @@ public class MongoDbJobStore : IJobStore
     {
         try
         {
-            return ExecuteInTx(LockType.TriggerAccess, () => ResumeTriggerInternal(triggerKey), token);
+            return ExecuteInTx(QuartzLockType.TriggerAccess, () => ResumeTriggerInternal(triggerKey), token);
         }
         catch (Exception ex)
         {
@@ -836,7 +857,7 @@ public class MongoDbJobStore : IJobStore
     {
         try
         {
-            return ExecuteInTx(LockType.TriggerAccess, () => ResumeTriggersInternal(matcher), token);
+            return ExecuteInTx(QuartzLockType.TriggerAccess, () => ResumeTriggersInternal(matcher), token);
         }
         catch (Exception ex)
         {
@@ -857,7 +878,7 @@ public class MongoDbJobStore : IJobStore
         try
         {
             return ExecuteInTx(
-                LockType.TriggerAccess,
+                QuartzLockType.TriggerAccess,
                 async () =>
                 {
                     var triggers = await _triggerRepository.GetTriggers(jobKey).ConfigureAwait(false);
@@ -886,7 +907,7 @@ public class MongoDbJobStore : IJobStore
         try
         {
             return ExecuteInTx<IReadOnlyCollection<string>>(
-                LockType.TriggerAccess,
+                QuartzLockType.TriggerAccess,
                 async () =>
                 {
                     var jobKeys = await _jobDetailRepository.GetJobsKeys(matcher).ConfigureAwait(false);
@@ -916,7 +937,7 @@ public class MongoDbJobStore : IJobStore
     {
         try
         {
-            return ExecuteInTx(LockType.TriggerAccess, PauseAllInternal, token);
+            return ExecuteInTx(QuartzLockType.TriggerAccess, PauseAllInternal, token);
         }
         catch (Exception ex)
         {
@@ -929,7 +950,7 @@ public class MongoDbJobStore : IJobStore
     {
         try
         {
-            return ExecuteInTx(LockType.TriggerAccess, ResumeAllInternal, token);
+            return ExecuteInTx(QuartzLockType.TriggerAccess, ResumeAllInternal, token);
         }
         catch (Exception ex)
         {
@@ -948,7 +969,7 @@ public class MongoDbJobStore : IJobStore
         try
         {
             return ExecuteInTx(
-                LockType.TriggerAccess,
+                QuartzLockType.TriggerAccess,
                 () => AcquireNextTriggersInternal(noLaterThan, maxCount, timeWindow),
                 token
             );
@@ -965,7 +986,7 @@ public class MongoDbJobStore : IJobStore
         try
         {
             return ExecuteInTx(
-                LockType.TriggerAccess,
+                QuartzLockType.TriggerAccess,
                 async () =>
                 {
                     await _triggerRepository.UpdateTriggerState(
@@ -1001,7 +1022,7 @@ public class MongoDbJobStore : IJobStore
         try
         {
             return ExecuteInTx<IReadOnlyCollection<TriggerFiredResult>>(
-                LockType.TriggerAccess,
+                QuartzLockType.TriggerAccess,
                 async () =>
                 {
                     var results = new List<TriggerFiredResult>();
@@ -1045,7 +1066,7 @@ public class MongoDbJobStore : IJobStore
         try
         {
             await ExecuteInTx(
-                    LockType.TriggerAccess,
+                    QuartzLockType.TriggerAccess,
                     () => TriggeredJobCompleteInternal(trigger, jobDetail, triggerInstCode),
                     token
                 )
@@ -1077,7 +1098,7 @@ public class MongoDbJobStore : IJobStore
             }
 
             return await ExecuteInTx(
-                    LockType.TriggerAccess,
+                    QuartzLockType.TriggerAccess,
                     async () => await RecoverMisfiredJobsInternal(false).ConfigureAwait(false)
                 )
                 .ConfigureAwait(false);
@@ -1090,7 +1111,7 @@ public class MongoDbJobStore : IJobStore
 
     private Task RecoverJobs()
     {
-        return ExecuteInTx(LockType.TriggerAccess, RecoverJobsInternal);
+        return ExecuteInTx(QuartzLockType.TriggerAccess, RecoverJobsInternal);
     }
 
 
@@ -2063,61 +2084,62 @@ public class MongoDbJobStore : IJobStore
     {
         var recovered = false;
 
-        using var session = await _database.Client.StartSessionAsync(cancellationToken: cancellationToken)
-            .ConfigureAwait(false);
-
-        session.StartTransaction();
 
         try
         {
-            // Other than the first time, always checkin first to make sure there is
-            // work to be done before we acquire the lock (since that is expensive,
-            // and is almost never necessary).  This must be done in a separate
-            // transaction to prevent a deadlock under recovery conditions.
-            IReadOnlyList<Scheduler>? failedRecords = null;
-            if (!_firstCheckIn)
-            {
-                failedRecords = await ClusterCheckIn().ConfigureAwait(false);
-            }
+            await _pendingLocksSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
 
-            if (_firstCheckIn || failedRecords != null && failedRecords.Count > 0)
-            {
-                await _lockRepository.TryAcquireLock(session, LockType.StateAccess, cancellationToken)
-                    .ConfigureAwait(false);
-
-                // Now that we own the lock, make sure we still have work to do.
-                // The first time through, we also need to make sure we update/create our state record
-                if (_firstCheckIn)
-                {
-                    failedRecords = await ClusterCheckIn().ConfigureAwait(false);
-                }
-                else
-                {
-                    failedRecords = await FindFailedInstances().ConfigureAwait(false);
-                }
-
-                if (failedRecords.Count > 0)
-                {
-                    await _lockRepository.TryAcquireLock(session, LockType.TriggerAccess, cancellationToken)
-                        .ConfigureAwait(false);
-
-                    await ClusterRecover(failedRecords).ConfigureAwait(false);
-                    recovered = true;
-                }
-            }
+            await using var context = await _lockingManager.CreateLockContext(cancellationToken).ConfigureAwait(false);
 
             try
             {
-                await session.CommitTransactionAsync(cancellationToken).ConfigureAwait(false);
+                // Other than the first time, always checkin first to make sure there is
+                // work to be done before we acquire the lock (since that is expensive,
+                // and is almost never necessary).  This must be done in a separate
+                // transaction to prevent a deadlock under recovery conditions.
+                IReadOnlyList<Scheduler>? failedRecords = null;
+                if (!_firstCheckIn)
+                {
+                    failedRecords = await ClusterCheckIn().ConfigureAwait(false);
+                }
+
+                if (_firstCheckIn || failedRecords != null && failedRecords.Count > 0)
+                {
+                    await context.TryAcquireLock(InstanceName, QuartzLockType.StateAccess, cancellationToken)
+                        .ConfigureAwait(false);
+
+
+                    // Now that we own the lock, make sure we still have work to do.
+                    // The first time through, we also need to make sure we update/create our state record
+                    if (_firstCheckIn)
+                    {
+                        failedRecords = await ClusterCheckIn().ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        failedRecords = await FindFailedInstances().ConfigureAwait(false);
+                    }
+
+                    if (failedRecords.Count > 0)
+                    {
+                        await context.TryAcquireLock(InstanceName, QuartzLockType.TriggerAccess, cancellationToken)
+                            .ConfigureAwait(false);
+
+                        await ClusterRecover(failedRecords).ConfigureAwait(false);
+                        recovered = true;
+                    }
+                }
+
+                await context.CommitTransaction(cancellationToken).ConfigureAwait(false);
             }
-            catch (Exception ex)
+            catch
             {
-                _logger.LogWarning(ex, "Failed to commit transaction {Message}", ex.Message);
+                await context.RollbackTransaction(cancellationToken).ConfigureAwait(false);
             }
         }
-        catch
+        finally
         {
-            await session.AbortTransactionAsync(cancellationToken).ConfigureAwait(false);
+            _pendingLocksSemaphore.Release();
         }
 
         _firstCheckIn = false;
@@ -2477,7 +2499,7 @@ public class MongoDbJobStore : IJobStore
     #region Locking
 
     private async Task ExecuteInTx(
-        LockType lockType,
+        QuartzLockType lockType,
         Func<Task> txCallback,
         CancellationToken cancellationToken = default
     )
@@ -2496,35 +2518,21 @@ public class MongoDbJobStore : IJobStore
 
 
     private async Task<T> ExecuteInTx<T>(
-        LockType lockType,
+        QuartzLockType lockType,
         Func<Task<T>> txCallback,
         CancellationToken cancellationToken = default
     )
     {
-        using var session = await _database.Client.StartSessionAsync(cancellationToken: cancellationToken)
-            .ConfigureAwait(false);
-
         try
         {
-            await _lockRepository.AcquireLock(session, lockType, cancellationToken).ConfigureAwait(false);
+            await _pendingLocksSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
 
-            var result = await txCallback.Invoke().ConfigureAwait(false);
-
-            try
-            {
-                await session.CommitTransactionAsync(cancellationToken).ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to commit transaction {Message}", ex.Message);
-            }
-
-            return result;
+            return await _lockingManager.ExecuteTransaction(InstanceName, lockType, txCallback, cancellationToken)
+                .ConfigureAwait(false);
         }
-        catch
+        finally
         {
-            await session.AbortTransactionAsync(cancellationToken).ConfigureAwait(false);
-            throw;
+            _pendingLocksSemaphore.Release();
         }
     }
 

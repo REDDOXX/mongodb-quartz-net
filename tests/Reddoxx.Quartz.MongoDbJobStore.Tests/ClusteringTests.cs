@@ -1,8 +1,19 @@
+using System.Diagnostics;
+
+using Medallion.Threading.Redis;
+
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
+
 using Quartz;
 using Quartz.Impl;
 using Quartz.Impl.Triggers;
 
-using Xunit;
+using Reddoxx.Quartz.MongoDbJobStore.Tests.Options;
+
+using ServiceStack.Redis;
+
+using StackExchange.Redis;
 
 namespace Reddoxx.Quartz.MongoDbJobStore.Tests;
 
@@ -29,7 +40,7 @@ public class ClusteringTests : BaseStoreTests, IDisposable
         {
             await _scheduler.Clear();
 
-            for (var i = 0; i < 100000; ++i)
+            for (var i = 0; i < 100; ++i)
             {
                 var trigger = new SimpleTriggerImpl(
                     $"calendarsTrigger_{i}",

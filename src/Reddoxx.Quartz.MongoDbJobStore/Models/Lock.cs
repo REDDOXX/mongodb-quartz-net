@@ -5,7 +5,8 @@ using MongoDB.Bson.Serialization.Attributes;
 
 namespace Reddoxx.Quartz.MongoDbJobStore.Models;
 
-internal enum LockType
+[PublicAPI]
+public enum QuartzLockType
 {
     /// <summary>
     /// Use TRIGGER_ACCESS database locking
@@ -15,7 +16,6 @@ internal enum LockType
     StateAccess,
 }
 
-[UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
 internal class Lock
 {
     [BsonId]
@@ -31,10 +31,10 @@ internal class Lock
     /// LOCK_NAME
     /// </summary>
     [BsonRepresentation(BsonType.String)]
-    public LockType LockType { get; set; }
+    public QuartzLockType LockType { get; init; }
 
     /// <summary>
     /// Random lock key which is set when acquiring the lock with findOneAndUpdate.
     /// </summary>
-    public ObjectId LockKey { get; set; }
+    public ObjectId LockKey { get; init; }
 }

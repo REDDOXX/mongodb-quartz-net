@@ -39,7 +39,7 @@ internal class LockRepository : BaseRepository<Lock>
 
     public async Task AcquireLock(
         IClientSessionHandle session,
-        LockType lockType,
+        QuartzLockType lockType,
         CancellationToken cancellationToken = default
     )
     {
@@ -99,7 +99,7 @@ internal class LockRepository : BaseRepository<Lock>
 
     public async Task TryAcquireLock(
         IClientSessionHandle session,
-        LockType lockType,
+        QuartzLockType lockType,
         CancellationToken cancellationToken
     )
     {
