@@ -11,11 +11,8 @@ using Reddoxx.Quartz.MongoDbJobStore.Database;
 using Reddoxx.Quartz.MongoDbJobStore.Extensions;
 using Reddoxx.Quartz.MongoDbJobStore.Locking;
 using Reddoxx.Quartz.MongoDbJobStore.Redlock;
-using Reddoxx.Quartz.MongoDbJobStore.ServiceStackRedis;
 using Reddoxx.Quartz.MongoDbJobStore.Tests.Options;
 using Reddoxx.Quartz.MongoDbJobStore.Tests.Persistence;
-
-using ServiceStack.Redis;
 
 using StackExchange.Redis;
 
