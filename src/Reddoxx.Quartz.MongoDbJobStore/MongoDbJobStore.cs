@@ -66,7 +66,6 @@ public class MongoDbJobStore : IJobStore
 
     private readonly SemaphoreSlim _pendingLocksSemaphore = new(1);
 
-    public string? ConnectionString { get; set; }
     public string? CollectionPrefix { get; set; }
 
     /// <summary>

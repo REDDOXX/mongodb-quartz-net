@@ -8,6 +8,7 @@ using Reddoxx.Quartz.MongoDbJobStore.Locking;
 using Reddoxx.Quartz.MongoDbJobStore.Models;
 
 using StackExchange.Redis;
+using StackExchange.Redis.Extensions.Core.Abstractions;
 
 namespace Reddoxx.Quartz.MongoDbJobStore.Redlock;
 
@@ -81,17 +82,21 @@ public class DistributedLocksQuartzLockingManager : IQuartzJobStoreLockingManage
         }
     }
 
-    private readonly IConnectionMultiplexer _multiplexer;
 
-    public DistributedLocksQuartzLockingManager(IConnectionMultiplexer multiplexer)
+    private readonly IRedisClientFactory _clientFactory;
+
+
+    public DistributedLocksQuartzLockingManager(IRedisClientFactory clientFactory)
     {
-        _multiplexer = multiplexer;
+        _clientFactory = clientFactory;
     }
 
 
     public Task<IQuartzJobStoreLockingManager.ILockContext> CreateLockContext(CancellationToken cancellationToken)
     {
-        var context = new RedisLockContext(_multiplexer.GetDatabase());
+        var redisDatabase = _clientFactory.GetDefaultRedisDatabase();
+
+        var context = new RedisLockContext(redisDatabase.Database);
 
         return Task.FromResult<IQuartzJobStoreLockingManager.ILockContext>(context);
     }
@@ -103,9 +108,11 @@ public class DistributedLocksQuartzLockingManager : IQuartzJobStoreLockingManage
         CancellationToken cancellationToken
     )
     {
+        var redisDatabase = _clientFactory.GetDefaultRedisDatabase();
+
         var key = CreateKey(instanceName, lockType);
 
-        var @lock = new RedisDistributedLock(key, _multiplexer.GetDatabase());
+        var @lock = new RedisDistributedLock(key, redisDatabase.Database);
 
         await using var _ = await @lock.AcquireAsync(null, cancellationToken).ConfigureAwait(false);
 

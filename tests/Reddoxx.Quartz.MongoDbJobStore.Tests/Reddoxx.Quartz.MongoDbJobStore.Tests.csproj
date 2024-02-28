@@ -39,14 +39,13 @@
 	<ItemGroup>
 		<PackageReference Include="Quartz.AspNetCore" Version="3.8.1" />
 		<PackageReference Include="Quartz" Version="3.8.1" />
+
+		<PackageReference Include="StackExchange.Redis.Extensions.AspNetCore" Version="10.2.0" />
+		<PackageReference Include="StackExchange.Redis.Extensions.System.Text.Json" Version="10.2.0" />
 	</ItemGroup>
 
 	<ItemGroup>
 		<ProjectReference Include="..\..\src\Reddoxx.Quartz.MongoDbJobStore.Redlock\Reddoxx.Quartz.MongoDbJobStore.Redlock.csproj" />
 		<ProjectReference Include="..\..\src\Reddoxx.Quartz.MongoDbJobStore\Reddoxx.Quartz.MongoDbJobStore.csproj" />
-	</ItemGroup>
-
-	<ItemGroup>
-	  <Folder Include="ServiceStackRedis\" />
 	</ItemGroup>
 </Project>

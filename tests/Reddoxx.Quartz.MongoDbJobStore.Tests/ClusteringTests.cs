@@ -1,19 +1,6 @@
-using System.Diagnostics;
-
-using Medallion.Threading.Redis;
-
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
-
 using Quartz;
 using Quartz.Impl;
 using Quartz.Impl.Triggers;
-
-using Reddoxx.Quartz.MongoDbJobStore.Tests.Options;
-
-using ServiceStack.Redis;
-
-using StackExchange.Redis;
 
 namespace Reddoxx.Quartz.MongoDbJobStore.Tests;
 

@@ -15,6 +15,8 @@ using Reddoxx.Quartz.MongoDbJobStore.Tests.Options;
 using Reddoxx.Quartz.MongoDbJobStore.Tests.Persistence;
 
 using StackExchange.Redis;
+using StackExchange.Redis.Extensions.Core.Configuration;
+using StackExchange.Redis.Extensions.System.Text.Json;
 
 namespace Reddoxx.Quartz.MongoDbJobStore.Tests;
 
@@ -49,27 +51,25 @@ public abstract class BaseStoreTests
         services.AddOptions<RedisOptions>().Bind(configuration.GetSection("Redis"));
 
 
-#if SERVICESTACK
-        // ServiceStack 
-        services.AddSingleton<IRedisClientsManager>(
-            sp =>
-            {
-                var redisOptions = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<RedisOptions>>().Value;
-
-                return new RedisManagerPool(redisOptions.ConnectionString);
-            }
-        );
-        services.AddSingleton(sp => (IRedisClientsManagerAsync)sp.GetRequiredService<IRedisClientsManager>());
-
-        services.AddSingleton<IQuartzJobStoreLockingManager, ServiceStackRedisQuartzLockingManager>();
-#endif
-
-        services.AddSingleton<IConnectionMultiplexer>(
+        services.AddStackExchangeRedisExtensions<SystemTextJsonSerializer>(
             sp =>
             {
                 var options = sp.GetRequiredService<IOptions<RedisOptions>>().Value;
 
-                return ConnectionMultiplexer.Connect(options.ConnectionString);
+                return
+                [
+                    new RedisConfiguration
+                    {
+                        Hosts =
+                        [
+                            new RedisHost
+                            {
+                                Host = options.Host,
+                                Port = options.Port,
+                            },
+                        ],
+                    },
+                ];
             }
         );
 
