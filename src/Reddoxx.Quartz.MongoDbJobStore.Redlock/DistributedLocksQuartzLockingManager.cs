@@ -1,5 +1,3 @@
-using JetBrains.Annotations;
-
 using Medallion.Threading.Redis;
 
 using Quartz;
@@ -12,7 +10,6 @@ using StackExchange.Redis.Extensions.Core.Abstractions;
 
 namespace Reddoxx.Quartz.MongoDbJobStore.Redlock;
 
-[PublicAPI]
 public class DistributedLocksQuartzLockingManager : IQuartzJobStoreLockingManager
 {
     private class RedisLockContext : IQuartzJobStoreLockingManager.ILockContext
