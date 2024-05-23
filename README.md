@@ -8,11 +8,13 @@ Fork of the awesome codebase of [@glucaci](https://github.com/glucaci/mongodb-qu
 - Latest .net support
 - Quartz cluster support
 - DI-based configuration
+- Improved locking support
 
 ## Limitations
-- Due to the nature of the DI-based approach multiple schedulers are not supported on the same host (`SchedulerBuilder.Build()`). 
+- Due to the nature of the DI-based approach multiple schedulers are not supported on the same host (`SchedulerBuilder.Build()`).
 - The locking mechanism has been rebuilt to use a `SELECT FOR UPDATE` approach, which requires transactions. 
-So your MongoDb needs to run in a **replica-set** configuration.
+So your MongoDb needs to run in a **replica-set** configuration. We also provide a way to use redis instead of mongodb 
+transactions for locking (using the redlock algorithm).
  
 ## Nuget
 
@@ -81,4 +83,15 @@ registers the `MongoDbJobStore` singleton as well. `storage.ConfigureMongoDb(c =
             );
         }
     );
+```
+
+## Use redlock for locking instead of mongodb transactions
+
+```shell
+Install-Package Reddoxx.Quartz.MongoDbJobStore.Redlock
+```
+
+```csharp
+    // Add the DistributedLocksQuartzLockingManager to your DI container
+    services.AddSingleton<IQuartzJobStoreLockingManager, DistributedLocksQuartzLockingManager>();
 ```

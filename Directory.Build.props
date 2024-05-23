@@ -6,7 +6,7 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<PackageReference Include="MinVer" Version="4.3.0">
+		<PackageReference Include="MinVer" Version="5.0.0">
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
 		</PackageReference>
@@ -17,7 +17,5 @@
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
 		</PackageReference>
-
-		<PackageReference Include="JetBrains.Annotations" Version="2023.3.0" />
 	</ItemGroup>
 </Project>
