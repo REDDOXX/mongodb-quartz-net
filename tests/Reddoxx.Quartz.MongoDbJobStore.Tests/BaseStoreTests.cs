@@ -97,7 +97,7 @@ public abstract class BaseStoreTests
                             );
                         }
 
-                        storage.UseNewtonsoftJsonSerializer();
+                        storage.UseSystemTextJsonSerializer();
 
                         storage.ConfigureMongoDb(
                             c =>

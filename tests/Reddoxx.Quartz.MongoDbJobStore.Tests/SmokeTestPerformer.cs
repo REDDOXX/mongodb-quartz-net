@@ -7,8 +7,6 @@ using Quartz.Impl.Matchers;
 using Quartz.Impl.Triggers;
 using Quartz.Spi;
 
-using Xunit;
-
 namespace Reddoxx.Quartz.MongoDbJobStore.Tests;
 
 public static class SmokeTestPerformer

@@ -29,7 +29,7 @@ namespace Reddoxx.Quartz.MongoDbJobStore;
 [PublicAPI]
 public class MongoDbJobStore : IJobStore
 {
-    internal static readonly JsonObjectSerializer ObjectSerializer = new();
+    internal static readonly SystemTextJsonObjectSerializer ObjectSerializer = new();
 
     private const string KeySignalChangeForTxCompletion = "sigChangeForTxCompletion";
     private const string AllGroupsPaused = "_$_ALL_GROUPS_PAUSED_$_";

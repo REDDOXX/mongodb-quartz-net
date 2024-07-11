@@ -30,7 +30,7 @@ public class DependencyInjectionTest
                     storage =>
                     {
                         storage.UseClustering();
-                        storage.UseNewtonsoftJsonSerializer();
+                        storage.UseSystemTextJsonSerializer();
 
                         storage.ConfigureMongoDb(
                             c =>
