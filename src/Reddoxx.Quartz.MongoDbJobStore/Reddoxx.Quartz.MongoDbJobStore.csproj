@@ -33,6 +33,10 @@
 		<PackageReference Include="Quartz" Version="3.13.1" />
 		<PackageReference Include="Quartz.Extensions.DependencyInjection" Version="3.13.1" />
 		<PackageReference Include="Quartz.Serialization.SystemTextJson" Version="3.13.1" />
+		<PackageReference Include="MongoDB.Driver" Version="2.28.0" />
+		<PackageReference Include="Quartz" Version="3.13.0" />
+		<PackageReference Include="Quartz.Extensions.DependencyInjection" Version="3.13.0" />
+		<PackageReference Include="Quartz.Serialization.SystemTextJson" Version="3.13.0" />
 	</ItemGroup>
 
 
