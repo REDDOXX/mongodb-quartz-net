@@ -16,7 +16,7 @@ public enum QuartzLockType
     StateAccess,
 }
 
-internal class Lock
+internal class SchedulerLock
 {
     [BsonId]
     public ObjectId Id { get; set; }

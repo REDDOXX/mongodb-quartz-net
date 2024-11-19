@@ -10,7 +10,7 @@ using Reddoxx.Quartz.MongoDbJobStore.Util;
 
 namespace Reddoxx.Quartz.MongoDbJobStore.Repositories;
 
-internal class LockRepository : BaseRepository<Lock>
+internal class LockRepository : BaseRepository<SchedulerLock>
 {
     private readonly ILogger<LockRepository> _logger = LogProvider.CreateLogger<LockRepository>();
 
@@ -24,11 +24,8 @@ internal class LockRepository : BaseRepository<Lock>
     {
         // Create: (sched_name,lock_name) uniqueness
         await Collection.Indexes.CreateOneAsync(
-            new CreateIndexModel<Lock>(
-                Builders<Lock>.IndexKeys.Combine(
-                    Builders<Lock>.IndexKeys.Ascending(x => x.InstanceName),
-                    Builders<Lock>.IndexKeys.Ascending(x => x.LockType)
-                ),
+            new CreateIndexModel<SchedulerLock>(
+                IndexBuilder.Ascending(x => x.InstanceName).Ascending(x => x.LockType),
                 new CreateIndexOptions
                 {
                     Unique = true,
@@ -103,10 +100,9 @@ internal class LockRepository : BaseRepository<Lock>
         CancellationToken cancellationToken
     )
     {
-        var filter = Builders<Lock>.Filter.Eq(x => x.InstanceName, InstanceName) &
-                     Builders<Lock>.Filter.Eq(x => x.LockType, lockType);
+        var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) & FilterBuilder.Eq(x => x.LockType, lockType);
 
-        var update = Builders<Lock>.Update.Set(x => x.LockKey, ObjectId.GenerateNewId());
+        var update = UpdateBuilder.Set(x => x.LockKey, ObjectId.GenerateNewId());
 
         var result = await Collection.FindOneAndUpdateAsync(
                 session,
@@ -126,7 +122,7 @@ internal class LockRepository : BaseRepository<Lock>
 
             await Collection.InsertOneAsync(
                     session,
-                    new Lock
+                    new SchedulerLock
                     {
                         InstanceName = InstanceName,
                         LockType = lockType,

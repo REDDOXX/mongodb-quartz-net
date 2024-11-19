@@ -20,11 +20,7 @@ internal class JobDetailRepository : BaseRepository<JobDetail>
         // PRIMARY KEY (sched_name,job_name,job_group)
         await Collection.Indexes.CreateOneAsync(
                 new CreateIndexModel<JobDetail>(
-                    IndexBuilder.Combine(
-                        IndexBuilder.Ascending(x => x.InstanceName),
-                        IndexBuilder.Ascending(x => x.Name),
-                        IndexBuilder.Ascending(x => x.Group)
-                    ),
+                    IndexBuilder.Ascending(x => x.InstanceName).Ascending(x => x.Name).Ascending(x => x.Group),
                     new CreateIndexOptions
                     {
                         Unique = true,
@@ -164,9 +160,9 @@ internal class JobDetailRepository : BaseRepository<JobDetail>
     {
         // SELECT 1 FROM JOB_DETAILS WHERE SCHED_NAME = @schedulerName AND JOB_NAME = @jobName AND JOB_GROUP = @jobGroup
 
-        var filter = Builders<JobDetail>.Filter.Eq(x => x.InstanceName, InstanceName) &
-                     Builders<JobDetail>.Filter.Eq(x => x.Name, jobKey.Name) &
-                     Builders<JobDetail>.Filter.Eq(x => x.Group, jobKey.Group);
+        var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) &
+                     FilterBuilder.Eq(x => x.Name, jobKey.Name) &
+                     FilterBuilder.Eq(x => x.Group, jobKey.Group);
 
         return await Collection.Find(filter).AnyAsync().ConfigureAwait(false);
     }

@@ -17,10 +17,7 @@ internal class CalendarRepository : BaseRepository<Calendar>
     {
         await Collection.Indexes.CreateOneAsync(
             new CreateIndexModel<Calendar>(
-                Builders<Calendar>.IndexKeys.Combine(
-                    Builders<Calendar>.IndexKeys.Ascending(x => x.InstanceName),
-                    Builders<Calendar>.IndexKeys.Ascending(x => x.CalendarName)
-                ),
+                IndexBuilder.Ascending(x => x.InstanceName).Ascending(x => x.CalendarName),
                 new CreateIndexOptions
                 {
                     Unique = true,
