@@ -39,7 +39,7 @@ public class MongoDbJobStore : IJobStore
 
     private static long _fireTriggerRecordCounter = DateTime.UtcNow.Ticks;
 
-    private readonly ILogger _logger = LogProvider.CreateLogger<MongoDbJobStore>();
+    private readonly ILogger _logger;
 
     private readonly IQuartzMongoDbJobStoreFactory _factory;
     private readonly IMongoDatabase _database;
@@ -180,6 +180,8 @@ public class MongoDbJobStore : IJobStore
     )
     {
         LogProvider.SetLogProvider(loggerFactory);
+
+        _logger = loggerFactory.CreateLogger<MongoDbJobStore>();
 
         ObjectSerializer.Initialize();
 
@@ -1180,8 +1182,8 @@ public class MongoDbJobStore : IJobStore
         var groupNames = await _triggerRepository.GetTriggerGroupNames().ConfigureAwait(false);
 
         await Task.WhenAll(
-                groupNames.Select(
-                    groupName => PauseTriggerGroupInternal(GroupMatcher<TriggerKey>.GroupEquals(groupName))
+                groupNames.Select(groupName =>
+                    PauseTriggerGroupInternal(GroupMatcher<TriggerKey>.GroupEquals(groupName))
                 )
             )
             .ConfigureAwait(false);
@@ -1978,8 +1980,8 @@ public class MongoDbJobStore : IJobStore
         await RecoverMisfiredJobsInternal(true).ConfigureAwait(false);
 
         var results =
-            (await _firedTriggerRepository.GetRecoverableFiredTriggers(InstanceId).ConfigureAwait(false)).Select(
-                async trigger => trigger.GetRecoveryTrigger(
+            (await _firedTriggerRepository.GetRecoverableFiredTriggers(InstanceId).ConfigureAwait(false)).Select(async
+                trigger => trigger.GetRecoveryTrigger(
                     await _triggerRepository.GetTriggerJobDataMap(trigger.TriggerKey).ConfigureAwait(false)
                 )
             );
