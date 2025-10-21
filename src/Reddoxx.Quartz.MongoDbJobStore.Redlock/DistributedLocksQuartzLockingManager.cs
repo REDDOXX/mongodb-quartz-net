@@ -12,6 +12,9 @@ namespace Reddoxx.Quartz.MongoDbJobStore.Redlock;
 
 public class DistributedLocksQuartzLockingManager : IQuartzJobStoreLockingManager
 {
+    public static TimeSpan? AcquireTimeout { get; set; }
+
+
     private class RedisLockContext : IQuartzJobStoreLockingManager.ILockContext
     {
         private readonly IDatabase _database;
@@ -111,7 +114,7 @@ public class DistributedLocksQuartzLockingManager : IQuartzJobStoreLockingManage
 
         var @lock = new RedisDistributedLock(key, redisDatabase.Database);
 
-        await using var _ = await @lock.AcquireAsync(null, cancellationToken).ConfigureAwait(false);
+        await using var _ = await @lock.AcquireAsync(AcquireTimeout, cancellationToken).ConfigureAwait(false);
 
         return await txCallback.Invoke().ConfigureAwait(false);
     }
