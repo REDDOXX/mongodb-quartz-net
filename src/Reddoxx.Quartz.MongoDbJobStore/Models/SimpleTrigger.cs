@@ -1,6 +1,4 @@
-using System.Diagnostics.CodeAnalysis;
-
-using JetBrains.Annotations;
+using MongoDB.Bson;
 
 using Quartz;
 using Quartz.Impl.Triggers;
@@ -8,21 +6,58 @@ using Quartz.Spi;
 
 namespace Reddoxx.Quartz.MongoDbJobStore.Models;
 
-[UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
 internal class SimpleTrigger : Trigger
 {
-    public int RepeatCount { get; set; }
+    public int RepeatCount { get; }
 
-    public TimeSpan RepeatInterval { get; set; }
+    public TimeSpan RepeatInterval { get; }
 
-    public int TimesTriggered { get; set; }
+    public int TimesTriggered { get; }
 
 
-    public SimpleTrigger()
+    public SimpleTrigger(
+        ObjectId id,
+        string instanceName,
+        string name,
+        string group,
+        string? description,
+        DateTimeOffset? nextFireTime,
+        DateTimeOffset? previousFireTime,
+        TriggerState state,
+        DateTimeOffset startTime,
+        DateTimeOffset? endTime,
+        string? calendarName,
+        int misfireInstruction,
+        int priority,
+        JobDataMap jobDataMap,
+        JobKey jobKey,
+        int repeatCount,
+        TimeSpan repeatInterval,
+        int timesTriggered
+    )
+        : base(
+            id,
+            instanceName,
+            name,
+            group,
+            description,
+            nextFireTime,
+            previousFireTime,
+            state,
+            startTime,
+            endTime,
+            calendarName,
+            misfireInstruction,
+            priority,
+            jobDataMap,
+            jobKey
+        )
     {
+        RepeatCount = repeatCount;
+        RepeatInterval = repeatInterval;
+        TimesTriggered = timesTriggered;
     }
 
-    [SetsRequiredMembers]
     public SimpleTrigger(ISimpleTrigger trigger, TriggerState state, string instanceName)
         : base(trigger, state, instanceName)
     {
@@ -30,6 +65,7 @@ internal class SimpleTrigger : Trigger
         RepeatInterval = trigger.RepeatInterval;
         TimesTriggered = trigger.TimesTriggered;
     }
+
 
     public override IOperableTrigger GetTrigger()
     {
@@ -39,7 +75,9 @@ internal class SimpleTrigger : Trigger
             RepeatInterval = RepeatInterval,
             TimesTriggered = TimesTriggered,
         };
+
         FillTrigger(trigger);
+
         return trigger;
     }
 }

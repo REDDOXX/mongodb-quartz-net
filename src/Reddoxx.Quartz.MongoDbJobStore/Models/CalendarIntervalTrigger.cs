@@ -1,9 +1,4 @@
-using System.Diagnostics.CodeAnalysis;
-
-using JetBrains.Annotations;
-
 using MongoDB.Bson;
-using MongoDB.Bson.Serialization.Attributes;
 
 using Quartz;
 using Quartz.Impl.Triggers;
@@ -11,28 +6,70 @@ using Quartz.Spi;
 
 namespace Reddoxx.Quartz.MongoDbJobStore.Models;
 
-[UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
 internal class CalendarIntervalTrigger : Trigger
 {
-    [BsonRepresentation(BsonType.String)]
-    public IntervalUnit RepeatIntervalUnit { get; set; }
+    public IntervalUnit RepeatIntervalUnit { get; }
 
-    public int RepeatInterval { get; set; }
+    public int RepeatInterval { get; }
 
-    public int TimesTriggered { get; set; }
+    public int TimesTriggered { get; }
 
-    public required string TimeZone { get; set; }
+    public string TimeZone { get; }
 
-    public bool PreserveHourOfDayAcrossDaylightSavings { get; set; }
+    public bool PreserveHourOfDayAcrossDaylightSavings { get; }
 
-    public bool SkipDayIfHourDoesNotExist { get; set; }
+    public bool SkipDayIfHourDoesNotExist { get; }
 
 
-    public CalendarIntervalTrigger()
+    public CalendarIntervalTrigger(
+        ObjectId id,
+        string instanceName,
+        string name,
+        string group,
+        string? description,
+        DateTimeOffset? nextFireTime,
+        DateTimeOffset? previousFireTime,
+        TriggerState state,
+        DateTimeOffset startTime,
+        DateTimeOffset? endTime,
+        string? calendarName,
+        int misfireInstruction,
+        int priority,
+        JobDataMap jobDataMap,
+        JobKey jobKey,
+        IntervalUnit repeatIntervalUnit,
+        int repeatInterval,
+        int timesTriggered,
+        string timeZone,
+        bool preserveHourOfDayAcrossDaylightSavings,
+        bool skipDayIfHourDoesNotExist
+    )
+        : base(
+            id,
+            instanceName,
+            name,
+            group,
+            description,
+            nextFireTime,
+            previousFireTime,
+            state,
+            startTime,
+            endTime,
+            calendarName,
+            misfireInstruction,
+            priority,
+            jobDataMap,
+            jobKey
+        )
     {
+        RepeatIntervalUnit = repeatIntervalUnit;
+        RepeatInterval = repeatInterval;
+        TimesTriggered = timesTriggered;
+        TimeZone = timeZone;
+        PreserveHourOfDayAcrossDaylightSavings = preserveHourOfDayAcrossDaylightSavings;
+        SkipDayIfHourDoesNotExist = skipDayIfHourDoesNotExist;
     }
 
-    [SetsRequiredMembers]
     public CalendarIntervalTrigger(ICalendarIntervalTrigger trigger, TriggerState state, string instanceName)
         : base(trigger, state, instanceName)
     {
@@ -55,7 +92,9 @@ internal class CalendarIntervalTrigger : Trigger
             PreserveHourOfDayAcrossDaylightSavings = PreserveHourOfDayAcrossDaylightSavings,
             SkipDayIfHourDoesNotExist = SkipDayIfHourDoesNotExist,
         };
+
         FillTrigger(trigger);
+
         return trigger;
     }
 }

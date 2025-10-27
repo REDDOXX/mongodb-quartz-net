@@ -15,9 +15,10 @@ internal class FiredTriggerRepository : BaseRepository<FiredTrigger>
 
     public override async Task EnsureIndex()
     {
-        // PRIMARY KEY (sched_name,entry_id)
-        await Collection.Indexes.CreateOneAsync(
-            new CreateIndexModel<FiredTrigger>(
+        var indices = new List<CreateIndexModel<FiredTrigger>>
+        {
+            // PRIMARY KEY (sched_name,entry_id)
+            new(
                 IndexBuilder.Combine(
                     IndexBuilder.Ascending(x => x.InstanceName),
                     IndexBuilder.Ascending(x => x.FiredInstanceId)
@@ -26,67 +27,62 @@ internal class FiredTriggerRepository : BaseRepository<FiredTrigger>
                 {
                     Unique = true,
                 }
-            )
-        );
+            ),
 
-        // create index idx_qrtz_ft_trig_name on qrtz_fired_triggers(trigger_name);
-        await Collection.Indexes.CreateOneAsync(
-            new CreateIndexModel<FiredTrigger>(IndexBuilder.Ascending(x => x.TriggerKey.Name))
-        );
+            // create index idx_qrtz_ft_trig_name on qrtz_fired_triggers(trigger_name);
+            new(IndexBuilder.Ascending(x => x.TriggerKey.Name)),
 
-        // create index idx_qrtz_ft_trig_group on qrtz_fired_triggers(trigger_group);
-        await Collection.Indexes.CreateOneAsync(
-            new CreateIndexModel<FiredTrigger>(IndexBuilder.Ascending(x => x.TriggerKey.Group))
-        );
+            // create index idx_qrtz_ft_trig_group on qrtz_fired_triggers(trigger_group);
+            new(IndexBuilder.Ascending(x => x.TriggerKey.Group)),
 
-        // create index idx_qrtz_ft_trig_nm_gp on qrtz_fired_triggers(sched_name,trigger_name,trigger_group);
-        await Collection.Indexes.CreateOneAsync(
-            new CreateIndexModel<FiredTrigger>(
+            // create index idx_qrtz_ft_trig_nm_gp on qrtz_fired_triggers(sched_name,trigger_name,trigger_group);
+            new(
                 IndexBuilder.Combine(
                     IndexBuilder.Ascending(x => x.InstanceName),
                     IndexBuilder.Ascending(x => x.TriggerKey.Name),
                     IndexBuilder.Ascending(x => x.TriggerKey.Group)
                 )
-            )
-        );
+            ),
 
-        // create index idx_qrtz_ft_trig_inst_name on qrtz_fired_triggers(instance_name);
-        await Collection.Indexes.CreateOneAsync(
-            new CreateIndexModel<FiredTrigger>(IndexBuilder.Ascending(x => x.InstanceId))
-        );
+            // create index idx_qrtz_ft_trig_inst_name on qrtz_fired_triggers(instance_name);
+            new(IndexBuilder.Ascending(x => x.InstanceId)),
 
-        // create index idx_qrtz_ft_job_name on qrtz_fired_triggers(job_name);
-        await Collection.Indexes.CreateOneAsync(
-            new CreateIndexModel<FiredTrigger>(IndexBuilder.Ascending(x => x.JobKey!.Name))
-        );
+            // create index idx_qrtz_ft_job_name on qrtz_fired_triggers(job_name);
+            new(IndexBuilder.Ascending(x => x.JobKey.Name)),
 
-        // create index idx_qrtz_ft_job_group on qrtz_fired_triggers(job_group);
-        await Collection.Indexes.CreateOneAsync(
-            new CreateIndexModel<FiredTrigger>(IndexBuilder.Ascending(x => x.JobKey!.Group))
-        );
+            // create index idx_qrtz_ft_job_group on qrtz_fired_triggers(job_group);
+            new(IndexBuilder.Ascending(x => x.JobKey.Group)),
 
-        // create index idx_qrtz_ft_job_req_recovery on qrtz_fired_triggers(requests_recovery);
-        await Collection.Indexes.CreateOneAsync(
-            new CreateIndexModel<FiredTrigger>(
+            // create index idx_qrtz_ft_job_req_recovery on qrtz_fired_triggers(requests_recovery);
+            new(
                 IndexBuilder.Ascending(x => x.RequestsRecovery),
                 new CreateIndexOptions<FiredTrigger>
                 {
                     PartialFilterExpression = FilterBuilder.Eq(x => x.RequestsRecovery, true),
                 }
-            )
-        );
+            ),
+        };
+
+        await Collection.Indexes.CreateManyAsync(indices);
     }
+
 
     public async Task<List<FiredTrigger>> GetFiredTriggers(JobKey jobKey)
     {
-        var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) & //
-                     FilterBuilder.Eq(x => x.JobKey, jobKey);
+        // SELECT *
+        // FROM FIRED_TRIGGERS
+        // WHERE
+        //   SCHED_NAME = @schedulerName AND
+        //   JOB_NAME = @jobName AND
+        //   JOB_GROUP = @jobGroup
+        var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) &
+                     FilterBuilder.Eq(x => x.JobKey.Name, jobKey.Name) &
+                     FilterBuilder.Eq(x => x.JobKey.Group, jobKey.Group);
 
         return await Collection
-            //
-            .Find(filter)
-            .ToListAsync()
-            .ConfigureAwait(false);
+                     //
+                     .Find(filter)
+                     .ToListAsync();
     }
 
     public async Task<List<FiredTrigger>> SelectInstancesFiredTriggerRecords(string instanceId)
@@ -96,7 +92,8 @@ internal class FiredTriggerRepository : BaseRepository<FiredTrigger>
         var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) &
                      FilterBuilder.Eq(x => x.InstanceId, instanceId);
 
-        return await Collection.Find(filter).ToListAsync().ConfigureAwait(false);
+        return await Collection.Find(filter)
+                               .ToListAsync();
     }
 
     /// <summary>
@@ -109,11 +106,8 @@ internal class FiredTriggerRepository : BaseRepository<FiredTrigger>
 
         var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName);
 
-        return await Collection
-            //
-            .Distinct(x => x.InstanceId, filter)
-            .ToListAsync()
-            .ConfigureAwait(false);
+        return await Collection.Distinct(x => x.InstanceId, filter)
+                               .ToListAsync();
     }
 
     public async Task<List<FiredTrigger>> SelectFiredTriggerRecords(string? triggerName, string group)
@@ -129,7 +123,8 @@ internal class FiredTriggerRepository : BaseRepository<FiredTrigger>
             filter &= FilterBuilder.Eq(x => x.TriggerKey.Name, triggerName);
         }
 
-        return await Collection.Find(filter).ToListAsync().ConfigureAwait(false);
+        return await Collection.Find(filter)
+                               .ToListAsync();
     }
 
     public async Task<List<FiredTrigger>> GetRecoverableFiredTriggers(string instanceId)
@@ -138,12 +133,13 @@ internal class FiredTriggerRepository : BaseRepository<FiredTrigger>
                      FilterBuilder.Eq(x => x.InstanceId, instanceId) &
                      FilterBuilder.Eq(x => x.RequestsRecovery, true);
 
-        return await Collection.Find(filter).ToListAsync().ConfigureAwait(false);
+        return await Collection.Find(filter)
+                               .ToListAsync();
     }
 
     public async Task AddFiredTrigger(FiredTrigger firedTrigger)
     {
-        await Collection.InsertOneAsync(firedTrigger).ConfigureAwait(false);
+        await Collection.InsertOneAsync(firedTrigger);
     }
 
     public async Task DeleteFiredTrigger(string firedInstanceId)
@@ -153,7 +149,7 @@ internal class FiredTriggerRepository : BaseRepository<FiredTrigger>
         var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) &
                      FilterBuilder.Eq(x => x.FiredInstanceId, firedInstanceId);
 
-        await Collection.DeleteOneAsync(filter).ConfigureAwait(false);
+        await Collection.DeleteOneAsync(filter);
     }
 
     /// <summary>
@@ -168,7 +164,7 @@ internal class FiredTriggerRepository : BaseRepository<FiredTrigger>
         var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) &
                      FilterBuilder.Eq(x => x.InstanceId, instanceId);
 
-        var result = await Collection.DeleteManyAsync(filter).ConfigureAwait(false);
+        var result = await Collection.DeleteManyAsync(filter);
         return result.DeletedCount;
     }
 
@@ -182,7 +178,7 @@ internal class FiredTriggerRepository : BaseRepository<FiredTrigger>
 
         var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName);
 
-        var result = await Collection.DeleteManyAsync(filter).ConfigureAwait(false);
+        var result = await Collection.DeleteManyAsync(filter);
         return result.DeletedCount;
     }
 
@@ -207,15 +203,15 @@ internal class FiredTriggerRepository : BaseRepository<FiredTrigger>
                      FilterBuilder.Eq(x => x.FiredInstanceId, firedTrigger.FiredInstanceId);
 
         var update = UpdateBuilder
-            //
-            .Set(x => x.InstanceId, firedTrigger.InstanceId)
-            .Set(x => x.Fired, firedTrigger.Fired)
-            .Set(x => x.Scheduled, firedTrigger.Scheduled)
-            .Set(x => x.State, firedTrigger.State)
-            .Set(x => x.JobKey, firedTrigger.JobKey)
-            .Set(x => x.ConcurrentExecutionDisallowed, firedTrigger.ConcurrentExecutionDisallowed)
-            .Set(x => x.RequestsRecovery, firedTrigger.RequestsRecovery);
+                     //
+                     .Set(x => x.InstanceId, firedTrigger.InstanceId)
+                     .Set(x => x.Fired, firedTrigger.Fired)
+                     .Set(x => x.Scheduled, firedTrigger.Scheduled)
+                     .Set(x => x.State, firedTrigger.State)
+                     .Set(x => x.JobKey, firedTrigger.JobKey)
+                     .Set(x => x.ConcurrentExecutionDisallowed, firedTrigger.ConcurrentExecutionDisallowed)
+                     .Set(x => x.RequestsRecovery, firedTrigger.RequestsRecovery);
 
-        await Collection.UpdateOneAsync(filter, update).ConfigureAwait(false);
+        await Collection.UpdateOneAsync(filter, update);
     }
 }

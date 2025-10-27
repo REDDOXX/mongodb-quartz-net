@@ -3,9 +3,10 @@ using MongoDB.Bson.Serialization;
 using MongoDB.Bson.Serialization.Serializers;
 
 using Quartz;
-using Quartz.Util;
 
 using Reddoxx.Quartz.MongoDbJobStore.Models;
+
+using TriggerState = Reddoxx.Quartz.MongoDbJobStore.Models.TriggerState;
 
 namespace Reddoxx.Quartz.MongoDbJobStore.Serializers;
 
@@ -16,77 +17,287 @@ internal static class JobStoreClassMap
         BsonSerializer.RegisterGenericSerializerDefinition(typeof(ISet<>), typeof(SetSerializer<>));
         BsonSerializer.RegisterSerializer(new JobDataMapSerializer());
 
-        BsonClassMap.RegisterClassMap<Key<JobKey>>(
-            map =>
+        BsonClassMap.RegisterClassMap<JobKey>(map =>
             {
                 map.AutoMap();
 
-                map.MapProperty(key => key.Group);
-                map.MapProperty(key => key.Name);
-
-                map.AddKnownType(typeof(JobKey));
-            }
-        );
-        BsonClassMap.RegisterClassMap<Key<TriggerKey>>(
-            map =>
-            {
-                map.AutoMap();
-
-                map.MapProperty(key => key.Group);
-                map.MapProperty(key => key.Name);
-
-                map.AddKnownType(typeof(TriggerKey));
-            }
-        );
-        BsonClassMap.RegisterClassMap<JobKey>(
-            map =>
-            {
-                map.MapCreator(jobKey => new JobKey(jobKey.Name));
                 map.MapCreator(jobKey => new JobKey(jobKey.Name, jobKey.Group));
             }
         );
 
-        BsonClassMap.RegisterClassMap<TriggerKey>(
-            map =>
+        BsonClassMap.RegisterClassMap<TriggerKey>(map =>
             {
-                map.MapCreator(triggerKey => new TriggerKey(triggerKey.Name));
+                map.AutoMap();
+
                 map.MapCreator(triggerKey => new TriggerKey(triggerKey.Name, triggerKey.Group));
             }
         );
 
-        BsonClassMap.RegisterClassMap<TimeOfDay>(
-            map =>
+        BsonClassMap.RegisterClassMap<TimeOfDay>(map =>
             {
                 map.AutoMap();
-
-                map.MapProperty(day => day.Hour);
-                map.MapProperty(day => day.Minute);
-                map.MapProperty(day => day.Second);
 
                 map.MapCreator(day => new TimeOfDay(day.Hour, day.Minute, day.Second));
-                map.MapCreator(day => new TimeOfDay(day.Hour, day.Minute));
             }
         );
 
-        BsonClassMap.RegisterClassMap<JobDetail>(
-            map =>
+        BsonClassMap.RegisterClassMap<JobDetail>(map =>
             {
                 map.AutoMap();
-                map.MapProperty(detail => detail.JobType).SetSerializer(new TypeSerializer());
+
+                map.MapIdProperty(x => x.Id);
+
+                map.MapProperty(x => x.Description)
+                   .SetIgnoreIfNull(true);
+
+                map.MapProperty(detail => detail.JobType)
+                   .SetSerializer(new TypeSerializer());
+
+                map.MapCreator(x => new JobDetail(
+                        x.Id,
+                        x.InstanceName,
+                        x.Name,
+                        x.Group,
+                        x.Description,
+                        x.JobType,
+                        x.Durable,
+                        x.ConcurrentExecutionDisallowed,
+                        x.JobDataMap,
+                        x.PersistJobDataAfterExecution,
+                        x.RequestsRecovery
+                    )
+                );
             }
         );
 
-        BsonClassMap.RegisterClassMap<DailyTimeIntervalTrigger>(
-            map =>
+        BsonClassMap.RegisterClassMap<DailyTimeIntervalTrigger>(map =>
             {
                 map.AutoMap();
 
                 map.MapProperty(trigger => trigger.DaysOfWeek)
-                    .SetSerializer(
-                        new EnumerableInterfaceImplementerSerializer<HashSet<DayOfWeek>, DayOfWeek>(
-                            new EnumSerializer<DayOfWeek>(BsonType.String)
-                        )
-                    );
+                   .SetSerializer(
+                       new EnumerableInterfaceImplementerSerializer<HashSet<DayOfWeek>, DayOfWeek>(
+                           new EnumSerializer<DayOfWeek>(BsonType.String)
+                       )
+                   );
+            }
+        );
+
+        BsonClassMap.RegisterClassMap<Calendar>(map =>
+            {
+                map.AutoMap();
+
+                map.MapIdProperty(x => x.Id);
+
+                map.MapCreator(x => new Calendar(x.Id, x.InstanceName, x.CalendarName, x.Content));
+            }
+        );
+
+
+        RegisterTriggerClassMaps();
+
+
+        BsonClassMap.RegisterClassMap<FiredTrigger>(map =>
+            {
+                map.AutoMap();
+
+
+                map.MapProperty(x => x.Fired)
+                   .SetSerializer(new DateTimeOffsetSerializer(BsonType.DateTime));
+
+                map.MapProperty(x => x.Scheduled)
+                   .SetSerializer(new DateTimeOffsetSerializer(BsonType.DateTime));
+
+                map.MapProperty(x => x.State)
+                   .SetSerializer(new EnumSerializer<TriggerState>(BsonType.String));
+
+
+                map.MapCreator(x => new FiredTrigger(
+                        x.Id,
+                        x.InstanceName,
+                        x.FiredInstanceId,
+                        x.TriggerKey,
+                        x.JobKey,
+                        x.InstanceId,
+                        x.Fired,
+                        x.Scheduled,
+                        x.Priority,
+                        x.State,
+                        x.ConcurrentExecutionDisallowed,
+                        x.RequestsRecovery
+                    )
+                );
+            }
+        );
+    }
+
+    private static void RegisterTriggerClassMaps()
+    {
+        BsonClassMap.RegisterClassMap<Trigger>(map =>
+            {
+                map.AutoMap();
+
+                map.MapIdProperty(x => x.Id);
+
+                map.MapProperty(x => x.Description)
+                   .SetIgnoreIfNull(true);
+
+                map.MapProperty(x => x.NextFireTime)
+                   .SetIgnoreIfNull(true)
+                   .SetSerializer(new DateTimeOffsetSerializer(BsonType.DateTime));
+
+                map.MapProperty(x => x.PreviousFireTime)
+                   .SetIgnoreIfNull(true)
+                   .SetSerializer(new DateTimeOffsetSerializer(BsonType.DateTime));
+
+                map.MapProperty(x => x.State)
+                   .SetSerializer(new EnumSerializer<TriggerState>(BsonType.String));
+
+                map.MapProperty(x => x.StartTime)
+                   .SetSerializer(new DateTimeOffsetSerializer(BsonType.DateTime));
+
+                map.MapProperty(x => x.EndTime)
+                   .SetIgnoreIfNull(true)
+                   .SetSerializer(new DateTimeOffsetSerializer(BsonType.DateTime));
+
+                map.MapProperty(x => x.CalendarName)
+                   .SetIgnoreIfNull(true);
+
+                map.SetIsRootClass(isRootClass: true);
+            }
+        );
+
+        BsonClassMap.RegisterClassMap<CronTrigger>(map =>
+            {
+                map.AutoMap();
+
+                map.MapCreator(x => new CronTrigger(
+                        x.Id,
+                        x.InstanceName,
+                        x.Name,
+                        x.Group,
+                        x.Description,
+                        x.NextFireTime,
+                        x.PreviousFireTime,
+                        x.State,
+                        x.StartTime,
+                        x.EndTime,
+                        x.CalendarName,
+                        x.MisfireInstruction,
+                        x.Priority,
+                        x.JobDataMap,
+                        x.JobKey,
+                        //
+                        x.CronExpression,
+                        x.TimeZone
+                    )
+                );
+            }
+        );
+
+        BsonClassMap.RegisterClassMap<SimpleTrigger>(map =>
+            {
+                map.AutoMap();
+
+                map.MapCreator(x => new SimpleTrigger(
+                        x.Id,
+                        x.InstanceName,
+                        x.Name,
+                        x.Group,
+                        x.Description,
+                        x.NextFireTime,
+                        x.PreviousFireTime,
+                        x.State,
+                        x.StartTime,
+                        x.EndTime,
+                        x.CalendarName,
+                        x.MisfireInstruction,
+                        x.Priority,
+                        x.JobDataMap,
+                        x.JobKey,
+                        //
+                        x.RepeatCount,
+                        x.RepeatInterval,
+                        x.TimesTriggered
+                    )
+                );
+            }
+        );
+
+        BsonClassMap.RegisterClassMap<CalendarIntervalTrigger>(map =>
+            {
+                map.AutoMap();
+
+                map.MapProperty(x => x.RepeatIntervalUnit)
+                   .SetSerializer(new EnumSerializer<IntervalUnit>(BsonType.String));
+
+                map.MapCreator(x => new CalendarIntervalTrigger(
+                        x.Id,
+                        x.InstanceName,
+                        x.Name,
+                        x.Group,
+                        x.Description,
+                        x.NextFireTime,
+                        x.PreviousFireTime,
+                        x.State,
+                        x.StartTime,
+                        x.EndTime,
+                        x.CalendarName,
+                        x.MisfireInstruction,
+                        x.Priority,
+                        x.JobDataMap,
+                        x.JobKey,
+                        //
+                        x.RepeatIntervalUnit,
+                        x.RepeatInterval,
+                        x.TimesTriggered,
+                        x.TimeZone,
+                        x.PreserveHourOfDayAcrossDaylightSavings,
+                        x.SkipDayIfHourDoesNotExist
+                    )
+                );
+            }
+        );
+
+        BsonClassMap.RegisterClassMap<DailyTimeIntervalTrigger>(map =>
+            {
+                map.AutoMap();
+
+
+                map.MapProperty(x => x.RepeatIntervalUnit)
+                   .SetSerializer(new EnumSerializer<IntervalUnit>(BsonType.String));
+
+                map.MapProperty(x => x.EndTimeOfDay)
+                   .SetIgnoreIfNull(true);
+
+
+                map.MapCreator(x => new DailyTimeIntervalTrigger(
+                        x.Id,
+                        x.InstanceName,
+                        x.Name,
+                        x.Group,
+                        x.Description,
+                        x.NextFireTime,
+                        x.PreviousFireTime,
+                        x.State,
+                        x.StartTime,
+                        x.EndTime,
+                        x.CalendarName,
+                        x.MisfireInstruction,
+                        x.Priority,
+                        x.JobDataMap,
+                        x.JobKey,
+                        // 
+                        x.RepeatCount,
+                        x.RepeatIntervalUnit,
+                        x.RepeatInterval,
+                        x.StartTimeOfDay,
+                        x.EndTimeOfDay,
+                        x.DaysOfWeek,
+                        x.TimesTriggered,
+                        x.TimeZone
+                    )
+                );
             }
         );
     }

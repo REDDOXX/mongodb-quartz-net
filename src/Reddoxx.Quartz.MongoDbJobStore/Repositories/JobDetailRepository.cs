@@ -19,15 +19,16 @@ internal class JobDetailRepository : BaseRepository<JobDetail>
     {
         // PRIMARY KEY (sched_name,job_name,job_group)
         await Collection.Indexes.CreateOneAsync(
-                new CreateIndexModel<JobDetail>(
-                    IndexBuilder.Ascending(x => x.InstanceName).Ascending(x => x.Name).Ascending(x => x.Group),
-                    new CreateIndexOptions
-                    {
-                        Unique = true,
-                    }
-                )
+            new CreateIndexModel<JobDetail>(
+                IndexBuilder.Ascending(x => x.InstanceName)
+                            .Ascending(x => x.Name)
+                            .Ascending(x => x.Group),
+                new CreateIndexOptions
+                {
+                    Unique = true,
+                }
             )
-            .ConfigureAwait(false);
+        );
     }
 
 
@@ -51,10 +52,9 @@ internal class JobDetailRepository : BaseRepository<JobDetail>
                          FilterBuilder.Eq(x => x.Group, jobKey.Group);
 
             return await Collection
-                //
-                .Find(filter)
-                .FirstOrDefaultAsync()
-                .ConfigureAwait(false);
+                         //
+                         .Find(filter)
+                         .FirstOrDefaultAsync();
         }
         catch (TypeLoadException ex)
         {
@@ -74,11 +74,10 @@ internal class JobDetailRepository : BaseRepository<JobDetail>
                      FilterBuilder.Regex(x => x.Group, matcher.ToBsonRegularExpression());
 
         return await Collection
-            //
-            .Find(filter)
-            .Project(x => new JobKey(x.Name, x.Group))
-            .ToListAsync()
-            .ConfigureAwait(false);
+                     //
+                     .Find(filter)
+                     .Project(x => new JobKey(x.Name, x.Group))
+                     .ToListAsync();
     }
 
     public async Task<List<string>> GetJobGroupNames()
@@ -88,15 +87,14 @@ internal class JobDetailRepository : BaseRepository<JobDetail>
         var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName);
 
         return await Collection
-            //
-            .Distinct(detail => detail.Group, filter)
-            .ToListAsync()
-            .ConfigureAwait(false);
+                     //
+                     .Distinct(detail => detail.Group, filter)
+                     .ToListAsync();
     }
 
     public async Task AddJob(JobDetail jobDetail)
     {
-        await Collection.InsertOneAsync(jobDetail).ConfigureAwait(false);
+        await Collection.InsertOneAsync(jobDetail);
     }
 
     public async Task<long> UpdateJob(JobDetail jobDetail)
@@ -112,23 +110,23 @@ internal class JobDetailRepository : BaseRepository<JobDetail>
         // WHERE
         //  SCHED_NAME = @schedulerName AND
         //  JOB_NAME = @jobName AND
-        //  JOB_GROUP = @jobGroup";
+        //  JOB_GROUP = @jobGroup
 
         var filter = FilterBuilder.Eq(x => x.InstanceName, jobDetail.InstanceName) &
                      FilterBuilder.Eq(x => x.Name, jobDetail.Name) &
                      FilterBuilder.Eq(x => x.Group, jobDetail.Group);
 
         var update = UpdateBuilder
-            //
-            .Set(x => x.Description, jobDetail.Description)
-            .Set(x => x.JobType, jobDetail.JobType)
-            .Set(x => x.Durable, jobDetail.Durable)
-            .Set(x => x.ConcurrentExecutionDisallowed, jobDetail.ConcurrentExecutionDisallowed)
-            .Set(x => x.PersistJobDataAfterExecution, jobDetail.PersistJobDataAfterExecution)
-            .Set(x => x.RequestsRecovery, jobDetail.RequestsRecovery)
-            .Set(x => x.JobDataMap, jobDetail.JobDataMap);
+                     //
+                     .Set(x => x.Description, jobDetail.Description)
+                     .Set(x => x.JobType, jobDetail.JobType)
+                     .Set(x => x.Durable, jobDetail.Durable)
+                     .Set(x => x.ConcurrentExecutionDisallowed, jobDetail.ConcurrentExecutionDisallowed)
+                     .Set(x => x.PersistJobDataAfterExecution, jobDetail.PersistJobDataAfterExecution)
+                     .Set(x => x.RequestsRecovery, jobDetail.RequestsRecovery)
+                     .Set(x => x.JobDataMap, jobDetail.JobDataMap);
 
-        var result = await Collection.UpdateOneAsync(filter, update).ConfigureAwait(false);
+        var result = await Collection.UpdateOneAsync(filter, update);
         return result.ModifiedCount;
     }
 
@@ -141,7 +139,7 @@ internal class JobDetailRepository : BaseRepository<JobDetail>
 
         var update = UpdateBuilder.Set(detail => detail.JobDataMap, jobDataMap);
 
-        await Collection.UpdateOneAsync(filter, update).ConfigureAwait(false);
+        await Collection.UpdateOneAsync(filter, update);
     }
 
 
@@ -152,7 +150,7 @@ internal class JobDetailRepository : BaseRepository<JobDetail>
                      FilterBuilder.Eq(x => x.Name, key.Name) &
                      FilterBuilder.Eq(x => x.Group, key.Group);
 
-        var result = await Collection.DeleteOneAsync(filter).ConfigureAwait(false);
+        var result = await Collection.DeleteOneAsync(filter);
         return result.DeletedCount;
     }
 
@@ -164,7 +162,8 @@ internal class JobDetailRepository : BaseRepository<JobDetail>
                      FilterBuilder.Eq(x => x.Name, jobKey.Name) &
                      FilterBuilder.Eq(x => x.Group, jobKey.Group);
 
-        return await Collection.Find(filter).AnyAsync().ConfigureAwait(false);
+        return await Collection.Find(filter)
+                               .AnyAsync();
     }
 
     public async Task<long> GetCount()
@@ -174,9 +173,8 @@ internal class JobDetailRepository : BaseRepository<JobDetail>
         var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName);
 
         return await Collection
-            //
-            .Find(filter)
-            .CountDocumentsAsync()
-            .ConfigureAwait(false);
+                     //
+                     .Find(filter)
+                     .CountDocumentsAsync();
     }
 }

@@ -1,39 +1,34 @@
-using System.Diagnostics.CodeAnalysis;
-
-using JetBrains.Annotations;
-
 using MongoDB.Bson;
-using MongoDB.Bson.Serialization.Attributes;
 
 using Quartz;
 
 namespace Reddoxx.Quartz.MongoDbJobStore.Models;
 
-[UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
 internal class Calendar
 {
-    [BsonId]
-    public ObjectId Id { get; set; }
+    public ObjectId Id { get; init; }
 
     /// <summary>
     /// </summary>
     /// <remarks>This is called sched_name</remarks>
-    [BsonRequired]
-    public required string InstanceName { get; set; }
+    public string InstanceName { get; init; }
 
-    [BsonRequired]
-    public required string CalendarName { get; set; }
+    public string CalendarName { get; init; }
 
-    public required byte[] Content { get; init; }
+    public byte[] Content { get; init; }
 
 
-    public Calendar()
+    public Calendar(ObjectId id, string instanceName, string calendarName, byte[] content)
     {
+        Id = id;
+        InstanceName = instanceName;
+        CalendarName = calendarName;
+        Content = content;
     }
 
-    [SetsRequiredMembers]
     public Calendar(string calendarName, ICalendar calendar, string instanceName)
     {
+        Id = ObjectId.GenerateNewId();
         InstanceName = instanceName;
         CalendarName = calendarName;
 

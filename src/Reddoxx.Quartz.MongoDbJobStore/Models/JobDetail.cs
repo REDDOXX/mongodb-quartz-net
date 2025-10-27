@@ -1,43 +1,34 @@
-using System.Diagnostics.CodeAnalysis;
-
-using JetBrains.Annotations;
-
 using MongoDB.Bson;
-using MongoDB.Bson.Serialization.Attributes;
 
 using Quartz;
 
 namespace Reddoxx.Quartz.MongoDbJobStore.Models;
 
-[UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
 internal class JobDetail
 {
-    [BsonId]
     public ObjectId Id { get; set; }
 
     /// <summary>
     /// schedulerName
     /// </summary>
-    public required string InstanceName { get; set; }
+    public string InstanceName { get; set; }
 
     /// <summary>
     /// jobName
     /// </summary>
-    public required string Name { get; set; }
+    public string Name { get; set; }
 
     /// <summary>
     /// jobGroup
     /// </summary>
-    public required string Group { get; set; }
+    public string Group { get; set; }
 
-
-    [BsonIgnoreIfNull]
     public string? Description { get; set; }
 
     /// <summary>
     /// job_class_name
     /// </summary>
-    public required Type JobType { get; set; }
+    public Type JobType { get; set; }
 
     /// <summary>
     /// is_durable
@@ -65,13 +56,39 @@ internal class JobDetail
     public bool RequestsRecovery { get; set; }
 
 
-    public JobDetail()
+    /// <summary>
+    /// MongoDb ctor
+    /// </summary>
+    public JobDetail(
+        ObjectId id,
+        string instanceName,
+        string name,
+        string group,
+        string? description,
+        Type jobType,
+        bool durable,
+        bool concurrentExecutionDisallowed,
+        JobDataMap? jobDataMap,
+        bool persistJobDataAfterExecution,
+        bool requestsRecovery
+    )
     {
+        Id = id;
+        InstanceName = instanceName;
+        Name = name;
+        Group = group;
+        Description = description;
+        JobType = jobType;
+        Durable = durable;
+        ConcurrentExecutionDisallowed = concurrentExecutionDisallowed;
+        JobDataMap = jobDataMap;
+        PersistJobDataAfterExecution = persistJobDataAfterExecution;
+        RequestsRecovery = requestsRecovery;
     }
 
-    [SetsRequiredMembers]
     public JobDetail(IJobDetail jobDetail, string instanceName)
     {
+        Id = ObjectId.GenerateNewId();
         InstanceName = instanceName;
         Name = jobDetail.Key.Name;
         Group = jobDetail.Key.Group;
@@ -89,15 +106,15 @@ internal class JobDetail
     {
         // The missing properties are figured out at runtime from the job type attributes
         return JobBuilder.Create()
-            .OfType(JobType)
-            .RequestRecovery(RequestsRecovery)
-            .StoreDurably(Durable)
-            .DisallowConcurrentExecution(ConcurrentExecutionDisallowed)
-            .PersistJobDataAfterExecution(PersistJobDataAfterExecution)
-            .WithDescription(Description)
-            .WithIdentity(GetJobKey())
-            .SetJobData(JobDataMap)
-            .Build();
+                         .OfType(JobType)
+                         .RequestRecovery(RequestsRecovery)
+                         .StoreDurably(Durable)
+                         .DisallowConcurrentExecution(ConcurrentExecutionDisallowed)
+                         .PersistJobDataAfterExecution(PersistJobDataAfterExecution)
+                         .WithDescription(Description)
+                         .WithIdentity(GetJobKey())
+                         .SetJobData(JobDataMap)
+                         .Build();
     }
 
     public JobKey GetJobKey()

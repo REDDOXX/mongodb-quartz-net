@@ -17,7 +17,8 @@ internal class CalendarRepository : BaseRepository<Calendar>
     {
         await Collection.Indexes.CreateOneAsync(
             new CreateIndexModel<Calendar>(
-                IndexBuilder.Ascending(x => x.InstanceName).Ascending(x => x.CalendarName),
+                IndexBuilder.Ascending(x => x.InstanceName)
+                            .Ascending(x => x.CalendarName),
                 new CreateIndexOptions
                 {
                     Unique = true,
@@ -25,6 +26,7 @@ internal class CalendarRepository : BaseRepository<Calendar>
             )
         );
     }
+
 
     public async Task<bool> CalendarExists(string calendarName)
     {
@@ -34,10 +36,9 @@ internal class CalendarRepository : BaseRepository<Calendar>
                      FilterBuilder.Eq(x => x.CalendarName, calendarName);
 
         return await Collection
-            //
-            .Find(filter)
-            .AnyAsync()
-            .ConfigureAwait(false);
+                     //
+                     .Find(filter)
+                     .AnyAsync();
     }
 
     public async Task<ICalendar?> GetCalendar(string calendarName)
@@ -48,10 +49,9 @@ internal class CalendarRepository : BaseRepository<Calendar>
                      FilterBuilder.Eq(x => x.CalendarName, calendarName);
 
         var result = await Collection
-            // 
-            .Find(filter)
-            .FirstOrDefaultAsync()
-            .ConfigureAwait(false);
+                           // 
+                           .Find(filter)
+                           .FirstOrDefaultAsync();
 
         return result?.GetCalendar();
     }
@@ -63,10 +63,9 @@ internal class CalendarRepository : BaseRepository<Calendar>
         var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName);
 
         return await Collection
-            //
-            .Distinct(calendar => calendar.CalendarName, filter)
-            .ToListAsync()
-            .ConfigureAwait(false);
+                     //
+                     .Distinct(calendar => calendar.CalendarName, filter)
+                     .ToListAsync();
     }
 
     public async Task<long> GetCount()
@@ -75,15 +74,14 @@ internal class CalendarRepository : BaseRepository<Calendar>
         var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName);
 
         return await Collection
-            //
-            .Find(filter)
-            .CountDocumentsAsync()
-            .ConfigureAwait(false);
+                     //
+                     .Find(filter)
+                     .CountDocumentsAsync();
     }
 
     public async Task AddCalendar(Calendar calendar)
     {
-        await Collection.InsertOneAsync(calendar).ConfigureAwait(false);
+        await Collection.InsertOneAsync(calendar);
     }
 
     public async Task<long> UpdateCalendar(Calendar calendar)
@@ -97,7 +95,7 @@ internal class CalendarRepository : BaseRepository<Calendar>
 
         var update = UpdateBuilder.Set(x => x.Content, calendar.Content);
 
-        var result = await Collection.UpdateOneAsync(filter, update).ConfigureAwait(false);
+        var result = await Collection.UpdateOneAsync(filter, update);
         return result.MatchedCount;
     }
 
@@ -108,10 +106,7 @@ internal class CalendarRepository : BaseRepository<Calendar>
         var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) &
                      FilterBuilder.Eq(x => x.CalendarName, calendarName);
 
-        var result = await Collection
-            //
-            .DeleteOneAsync(filter)
-            .ConfigureAwait(false);
+        var result = await Collection.DeleteOneAsync(filter);
 
         return result.DeletedCount;
     }
