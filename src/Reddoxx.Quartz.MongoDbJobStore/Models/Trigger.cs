@@ -70,8 +70,8 @@ internal abstract class Trigger
     /// next_fire_time
     /// </summary>
     [BsonIgnoreIfNull]
-    [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
-    public DateTime? NextFireTime { get; set; }
+    [BsonRepresentation(BsonType.DateTime)]
+    public DateTimeOffset? NextFireTime { get; set; }
 
     /// <summary>
     /// prev_fire_time

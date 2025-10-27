@@ -4,7 +4,7 @@ namespace Reddoxx.Quartz.MongoDbJobStore.Locking;
 
 public interface IQuartzJobStoreLockingManager
 {
-    public interface ILockContext : IAsyncDisposable
+    interface ILockContext : IAsyncDisposable
     {
         Task TryAcquireLock(string instanceName, QuartzLockType lockType, CancellationToken cancellationToken);
 

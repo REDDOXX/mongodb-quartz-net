@@ -53,8 +53,8 @@ internal class FiredTrigger
     /// <summary>
     /// sched_time
     /// </summary>
-    [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
-    public DateTime? Scheduled { get; set; }
+    [BsonRepresentation(BsonType.DateTime)]
+    public DateTimeOffset? Scheduled { get; set; }
 
     /// <summary>
     /// priority
@@ -105,7 +105,7 @@ internal class FiredTrigger
     public IOperableTrigger GetRecoveryTrigger(JobDataMap jobDataMap)
     {
         var firedTime = new DateTimeOffset(Fired);
-        var scheduledTime = Scheduled.HasValue ? new DateTimeOffset(Scheduled.Value) : DateTimeOffset.MinValue;
+        var scheduledTime = Scheduled ?? DateTimeOffset.MinValue;
 
         var name = $"recover_{InstanceId}_{Guid.NewGuid()}";
 

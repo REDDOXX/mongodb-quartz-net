@@ -6,6 +6,8 @@ using Quartz.Impl.Matchers;
 using Reddoxx.Quartz.MongoDbJobStore.Extensions;
 using Reddoxx.Quartz.MongoDbJobStore.Models;
 
+using TriggerState = Reddoxx.Quartz.MongoDbJobStore.Models.TriggerState;
+
 namespace Reddoxx.Quartz.MongoDbJobStore.Repositories;
 
 internal class TriggerRepository : BaseRepository<Trigger>
@@ -256,22 +258,21 @@ internal class TriggerRepository : BaseRepository<Trigger>
         //  ORDER BY
         //      NEXT_FIRE_TIME ASC, PRIORITY DESC
 
-        var noLaterThanDateTime = noLaterThan.UtcDateTime;
-        var noEarlierThanDateTime = noEarlierThan.UtcDateTime;
-
-        var filter = FilterBuilder.Where(
-            x => x.InstanceName == InstanceName &&
-                 x.State == Models.TriggerState.Waiting &&
-                 x.NextFireTime <= noLaterThanDateTime &&
-                 (x.MisfireInstruction == -1 || (x.MisfireInstruction != -1 && x.NextFireTime >= noEarlierThanDateTime))
-        );
+        var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) &
+                     FilterBuilder.Eq(x => x.State, TriggerState.Waiting) &
+                     FilterBuilder.Lte(x => x.NextFireTime, noLaterThan) &
+                     FilterBuilder.Or(
+                         FilterBuilder.Eq(x => x.MisfireInstruction, -1),
+                         FilterBuilder.And(
+                             FilterBuilder.Ne(x => x.MisfireInstruction, -1),
+                             FilterBuilder.Gte(x => x.NextFireTime, noEarlierThan)
+                         )
+                     );
 
         var sort = SortBuilder.Combine(
             SortBuilder.Ascending(trigger => trigger.NextFireTime),
             SortBuilder.Descending(trigger => trigger.Priority)
         );
-
-        var t = Collection.Find(filter).Project(trigger => new TriggerKey(trigger.Name, trigger.Group));
 
         return await Collection.Find(filter)
             .Sort(sort)
@@ -307,11 +308,11 @@ internal class TriggerRepository : BaseRepository<Trigger>
 
     public async Task<long> GetMisfireCount(DateTime nextFireTime)
     {
-        var filter = FilterBuilder.Where(
-            x => x.InstanceName == InstanceName &&
-                 x.MisfireInstruction != MisfireInstruction.IgnoreMisfirePolicy &&
-                 x.NextFireTime < nextFireTime &&
-                 x.State == Models.TriggerState.Waiting
+        var filter = FilterBuilder.Where(x =>
+            x.InstanceName == InstanceName &&
+            x.MisfireInstruction != MisfireInstruction.IgnoreMisfirePolicy &&
+            x.NextFireTime < nextFireTime &&
+            x.State == Models.TriggerState.Waiting
         );
 
         return await Collection.Find(filter).CountDocumentsAsync().ConfigureAwait(false);
@@ -420,8 +421,8 @@ internal class TriggerRepository : BaseRepository<Trigger>
         params Models.TriggerState[] oldStates
     )
     {
-        var filter = FilterBuilder.Where(
-            x => x.InstanceName == InstanceName && x.JobKey == jobKey && oldStates.Contains(x.State)
+        var filter = FilterBuilder.Where(x =>
+            x.InstanceName == InstanceName && x.JobKey == jobKey && oldStates.Contains(x.State)
         );
 
         var update = UpdateBuilder.Set(trigger => trigger.State, newState);
@@ -485,7 +486,7 @@ internal class TriggerRepository : BaseRepository<Trigger>
     /// <param name="maxResults"></param>
     /// <returns></returns>
     public async Task<(bool hasReachedLimit, List<TriggerKey> results)> HasMisfiredTriggers(
-        DateTime nextFireTime,
+        DateTimeOffset nextFireTime,
         int maxResults
     )
     {
@@ -497,7 +498,7 @@ internal class TriggerRepository : BaseRepository<Trigger>
         var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) &
                      FilterBuilder.Ne(x => x.MisfireInstruction, MisfireInstruction.IgnoreMisfirePolicy) &
                      FilterBuilder.Lt(x => x.NextFireTime, nextFireTime) &
-                     FilterBuilder.Eq(x => x.State, Models.TriggerState.Waiting);
+                     FilterBuilder.Eq(x => x.State, TriggerState.Waiting);
 
         var sort = SortBuilder.Combine(
             SortBuilder.Ascending(trigger => trigger.NextFireTime),
@@ -507,7 +508,7 @@ internal class TriggerRepository : BaseRepository<Trigger>
         var cursor = await Collection
             //
             .Find(filter)
-            .Limit(maxResults)
+            .Limit(maxResults + 1)
             .Project(trigger => new TriggerKey(trigger.Name, trigger.Group))
             .Sort(sort)
             .ToCursorAsync();

@@ -2028,10 +2028,9 @@ public class MongoDbJobStore : IJobStore
         // If recovering, we want to handle all of the misfired
         // triggers right away.
         var maxMisfiresToHandleAtTime = recovering ? -1 : MaxMisfiresToHandleAtATime;
-        var earliestNewTime = DateTime.MaxValue;
 
         var (hasMoreMisfiredTriggers, misfiredTriggers) = await _triggerRepository.HasMisfiredTriggers(
-                MisfireTime.UtcDateTime,
+                MisfireTime,
                 maxMisfiresToHandleAtTime
             )
             .ConfigureAwait(false);
@@ -2056,6 +2055,8 @@ public class MongoDbJobStore : IJobStore
             _logger.LogInformation("Found 0 triggers that missed their scheduled fire-time.");
             return RecoverMisfiredJobsResult.NoOp;
         }
+
+        var earliestNewTime = DateTimeOffset.MaxValue;
 
         foreach (var misfiredTrigger in misfiredTriggers)
         {
@@ -2133,9 +2134,11 @@ public class MongoDbJobStore : IJobStore
 
                 await context.CommitTransaction(cancellationToken).ConfigureAwait(false);
             }
-            catch
+            catch (Exception ex)
             {
                 await context.RollbackTransaction(cancellationToken).ConfigureAwait(false);
+
+                _logger.LogWarning(ex, "Failed to do cluster check-in {Message}", ex.Message);
             }
         }
         finally
