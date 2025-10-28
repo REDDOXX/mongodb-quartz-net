@@ -1,0 +1,22 @@
+<Solution>
+  <Folder Name="/.github/" />
+  <Folder Name="/.github/workflows/">
+    <File Path=".github/workflows/dotnet.yml" />
+  </Folder>
+  <Folder Name="/Solution Items/">
+    <File Path=".editorconfig" />
+    <File Path="Directory.Build.props" />
+    <File Path="Directory.Packages.props" />
+    <File Path="global.json" />
+    <File Path="LICENSE.txt" />
+    <File Path="nuget.config" />
+    <File Path="README.md" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/Reddoxx.Quartz.MongoDbJobStore.Redlock/Reddoxx.Quartz.MongoDbJobStore.Redlock.csproj" />
+    <Project Path="src/Reddoxx.Quartz.MongoDbJobStore/Reddoxx.Quartz.MongoDbJobStore.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Reddoxx.Quartz.MongoDbJobStore.Tests/Reddoxx.Quartz.MongoDbJobStore.Tests.csproj" />
+  </Folder>
+</Solution>
