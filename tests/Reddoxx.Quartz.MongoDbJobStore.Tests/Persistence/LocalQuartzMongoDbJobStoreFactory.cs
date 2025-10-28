@@ -1,5 +1,8 @@
 using Microsoft.Extensions.Options;
 
+using MongoDB.Bson;
+using MongoDB.Bson.Serialization;
+using MongoDB.Bson.Serialization.Serializers;
 using MongoDB.Driver;
 
 using Reddoxx.Quartz.MongoDbJobStore.Database;
@@ -13,6 +16,13 @@ internal sealed class LocalQuartzMongoDbJobStoreFactory : IQuartzMongoDbJobStore
 
     public LocalQuartzMongoDbJobStoreFactory(IOptions<MongoDbOptions> options)
     {
+        // Set the default guid representation
+        BsonSerializer.TryRegisterSerializer(new GuidSerializer(GuidRepresentation.Standard));
+
+        var objectDiscriminatorConvention = BsonSerializer.LookupDiscriminatorConvention(typeof(object));
+        var objectSerializer = new ObjectSerializer(objectDiscriminatorConvention, GuidRepresentation.Standard);
+        BsonSerializer.TryRegisterSerializer(objectSerializer);
+
         var mongoDbOptions = options.Value;
 
         var url = new MongoUrl(mongoDbOptions.ConnectionString);

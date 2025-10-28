@@ -1,59 +1,62 @@
+using JetBrains.Annotations;
+
 using MongoDB.Bson;
 
 using Quartz;
 
 namespace Reddoxx.Quartz.MongoDbJobStore.Models;
 
+[UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
 internal class JobDetail
 {
-    public ObjectId Id { get; set; }
+    public ObjectId Id { get; init; }
 
     /// <summary>
     /// schedulerName
     /// </summary>
-    public string InstanceName { get; set; }
+    public string InstanceName { get; init; }
 
     /// <summary>
     /// jobName
     /// </summary>
-    public string Name { get; set; }
+    public string Name { get; init; }
 
     /// <summary>
     /// jobGroup
     /// </summary>
-    public string Group { get; set; }
+    public string Group { get; init; }
 
-    public string? Description { get; set; }
+    public string? Description { get; init; }
 
     /// <summary>
     /// job_class_name
     /// </summary>
-    public Type JobType { get; set; }
+    public Type JobType { get; init; }
 
     /// <summary>
     /// is_durable
     /// </summary>
-    public bool Durable { get; set; }
+    public bool Durable { get; init; }
 
     /// <summary>
     /// is_nonconcurrent (legacy: jobVolatile)
     /// </summary>
-    public bool ConcurrentExecutionDisallowed { get; set; }
+    public bool ConcurrentExecutionDisallowed { get; init; }
 
     /// <summary>
     /// job_data
     /// </summary>
-    public JobDataMap? JobDataMap { get; set; }
+    public JobDataMap? JobDataMap { get; init; }
 
     /// <summary>
     /// IS_UPDATE_DATA (legacy: jobStateful)
     /// </summary>
-    public bool PersistJobDataAfterExecution { get; set; }
+    public bool PersistJobDataAfterExecution { get; init; }
 
     /// <summary>
     /// requests_recovery
     /// </summary>
-    public bool RequestsRecovery { get; set; }
+    public bool RequestsRecovery { get; init; }
 
 
     /// <summary>

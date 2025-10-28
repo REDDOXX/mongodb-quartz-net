@@ -1,3 +1,5 @@
+using JetBrains.Annotations;
+
 using MongoDB.Bson;
 
 using Quartz;
@@ -6,23 +8,24 @@ using Quartz.Spi;
 
 namespace Reddoxx.Quartz.MongoDbJobStore.Models;
 
+[UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
 internal class DailyTimeIntervalTrigger : Trigger
 {
-    public int RepeatCount { get; }
+    public int RepeatCount { get; init; }
 
-    public IntervalUnit RepeatIntervalUnit { get; }
+    public IntervalUnit RepeatIntervalUnit { get; init; }
 
-    public int RepeatInterval { get; }
+    public int RepeatInterval { get; init; }
 
-    public TimeOfDay StartTimeOfDay { get; }
+    public TimeOfDay StartTimeOfDay { get; init; }
 
-    public TimeOfDay? EndTimeOfDay { get; }
+    public TimeOfDay? EndTimeOfDay { get; init; }
 
-    public HashSet<DayOfWeek> DaysOfWeek { get; }
+    public HashSet<DayOfWeek> DaysOfWeek { get; init; }
 
-    public int TimesTriggered { get; }
+    public int TimesTriggered { get; init; }
 
-    public string TimeZone { get; }
+    public string TimeZone { get; init; }
 
 
     public DailyTimeIntervalTrigger(

@@ -1,30 +1,33 @@
+using JetBrains.Annotations;
+
 using MongoDB.Bson;
 
 namespace Reddoxx.Quartz.MongoDbJobStore.Models;
 
+[UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
 internal class Scheduler
 {
-    public ObjectId Id { get; }
+    public ObjectId Id { get; init; }
 
     /// <summary>
     /// sched_name
     /// </summary>
-    public string SchedulerName { get; }
+    public string SchedulerName { get; init; }
 
     /// <summary>
     /// instance_name
     /// </summary>
-    public string InstanceId { get; }
+    public string InstanceId { get; init; }
 
     /// <summary>
     /// last_checkin_time
     /// </summary>
-    public DateTimeOffset LastCheckIn { get; }
+    public DateTimeOffset LastCheckIn { get; init; }
 
     /// <summary>
     /// checkin_interval
     /// </summary>
-    public TimeSpan CheckInInterval { get; }
+    public TimeSpan CheckInInterval { get; init; }
 
 
     public Scheduler(

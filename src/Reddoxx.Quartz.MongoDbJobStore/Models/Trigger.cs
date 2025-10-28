@@ -1,3 +1,5 @@
+using JetBrains.Annotations;
+
 using MongoDB.Bson;
 
 using Quartz;
@@ -28,81 +30,82 @@ internal enum LocalTriggerState
 /// <remarks>
 /// trigger_type has been removed as we're using the mongodb inheritance feature.
 /// </remarks>
+[UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
 internal abstract class Trigger
 {
-    public ObjectId Id { get; set; }
+    public ObjectId Id { get; init; }
 
     /// <summary>
     /// sched_name
     /// </summary>
-    public string InstanceName { get; set; }
+    public string InstanceName { get; init; }
 
     /// <summary>
     /// trigger_name
     /// </summary>
-    public string Name { get; set; }
+    public string Name { get; init; }
 
     /// <summary>
     /// trigger_group
     /// </summary>
-    public string Group { get; set; }
+    public string Group { get; init; }
 
 
     /// <summary>
     /// description
     /// </summary>
-    public string? Description { get; set; }
+    public string? Description { get; init; }
 
     /// <summary>
     /// next_fire_time
     /// </summary>
-    public DateTimeOffset? NextFireTime { get; set; }
+    public DateTimeOffset? NextFireTime { get; init; }
 
     /// <summary>
     /// prev_fire_time
     /// </summary>
-    public DateTimeOffset? PreviousFireTime { get; set; }
+    public DateTimeOffset? PreviousFireTime { get; init; }
 
     /// <summary>
     /// trigger_state
     /// </summary>
-    public LocalTriggerState State { get; set; }
+    public LocalTriggerState State { get; init; }
 
     /// <summary>
     /// start_time
     /// </summary>
-    public DateTimeOffset StartTime { get; set; }
+    public DateTimeOffset StartTime { get; init; }
 
     /// <summary>
     /// end_time
     /// </summary>
-    public DateTimeOffset? EndTime { get; set; }
+    public DateTimeOffset? EndTime { get; init; }
 
     /// <summary>
     /// calendar_name
     /// </summary>
-    public string? CalendarName { get; set; }
+    public string? CalendarName { get; init; }
 
     /// <summary>
     /// misfire_instr
     /// </summary>
-    public int MisfireInstruction { get; set; }
+    public int MisfireInstruction { get; init; }
 
     /// <summary>
     /// priority
     /// </summary>
-    public int Priority { get; set; }
+    public int Priority { get; init; }
 
 
     /// <summary>
     /// job_data
     /// </summary>
-    public JobDataMap JobDataMap { get; set; }
+    public JobDataMap JobDataMap { get; init; }
 
     /// <summary>
     /// job_name, job_group
     /// </summary>
-    public JobKey JobKey { get; set; }
+    public JobKey JobKey { get; init; }
 
 
     protected Trigger(

@@ -423,20 +423,11 @@ public class MongoDbJobStoreTests : BaseStoreTests, IDisposable
                                       .WithIdentity("j2")
                                       .Build();
 
-        try
-        {
-            await _scheduler.AddJob(nonDurableJob, false);
-            throw new Exception("Storage of non-durable job should not have succeeded.");
-        }
-        catch (Exception e)
-        {
-            var expectedException = e as SchedulerException;
-            await Assert.That(expectedException)
-                        .IsNull();
+        await Assert.ThrowsAsync(async () => await _scheduler.AddJob(nonDurableJob, false))
+                    .WithExceptionType(typeof(SchedulerException));
 
-            await Assert.That(await _scheduler.CheckExists(new JobKey("j2")))
-                        .IsFalse();
-        }
+        await Assert.That(await _scheduler.CheckExists(new JobKey("j2")))
+                    .IsFalse();
 
         await _scheduler.AddJob(nonDurableJob, false, true);
 

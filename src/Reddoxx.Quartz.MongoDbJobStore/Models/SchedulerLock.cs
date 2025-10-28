@@ -15,9 +15,10 @@ public enum QuartzLockType
     StateAccess,
 }
 
+[UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
 internal class SchedulerLock
 {
-    public ObjectId Id { get; set; }
+    public ObjectId Id { get; init; }
 
     /// <summary>
     /// SCHED_NAME

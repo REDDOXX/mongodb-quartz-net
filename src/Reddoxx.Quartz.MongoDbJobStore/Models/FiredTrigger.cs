@@ -1,5 +1,7 @@
 using System.Globalization;
 
+using JetBrains.Annotations;
+
 using MongoDB.Bson;
 
 using Quartz;
@@ -8,65 +10,66 @@ using Quartz.Spi;
 
 namespace Reddoxx.Quartz.MongoDbJobStore.Models;
 
+[UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
 internal class FiredTrigger
 {
-    public ObjectId Id { get; }
+    public ObjectId Id { get; init; }
 
     /// <summary>
     /// </summary>
     /// <remarks>Also called sched_name</remarks>
-    public string InstanceName { get; }
+    public string InstanceName { get; init; }
 
     /// <summary>
     /// </summary>
     /// <remarks>Also called entry_id</remarks>
-    public string FiredInstanceId { get; }
+    public string FiredInstanceId { get; init; }
 
 
     /// <summary>
     /// trigger_name, trigger_group
     /// </summary>
-    public TriggerKey TriggerKey { get; }
+    public TriggerKey TriggerKey { get; init; }
 
     /// <summary>
     /// job_name, job_group
     /// </summary>
-    public JobKey? JobKey { get; }
+    public JobKey? JobKey { get; init; }
 
     /// <summary>
     /// instance_name
     /// </summary>
-    public string InstanceId { get; }
+    public string InstanceId { get; init; }
 
     /// <summary>
     /// fired_time
     /// </summary>
-    public DateTimeOffset Fired { get; }
+    public DateTimeOffset Fired { get; init; }
 
     /// <summary>
     /// sched_time
     /// </summary>
-    public DateTimeOffset? Scheduled { get; }
+    public DateTimeOffset? Scheduled { get; init; }
 
     /// <summary>
     /// priority
     /// </summary>
-    public int Priority { get; }
+    public int Priority { get; init; }
 
     /// <summary>
     /// state
     /// </summary>
-    public LocalTriggerState State { get; }
+    public LocalTriggerState State { get; init; }
 
     /// <summary>
     /// is_nonconcurrent
     /// </summary>
-    public bool ConcurrentExecutionDisallowed { get; }
+    public bool ConcurrentExecutionDisallowed { get; init; }
 
     /// <summary>
     /// requests_recovery
     /// </summary>
-    public bool RequestsRecovery { get; }
+    public bool RequestsRecovery { get; init; }
 
 
     public FiredTrigger(
@@ -112,7 +115,7 @@ internal class FiredTrigger
         InstanceId = instanceId;
 
         TriggerKey = trigger.GetTriggerKey();
-        Fired = DateTime.UtcNow;
+        Fired = DateTimeOffset.UtcNow;
         Scheduled = trigger.NextFireTime;
         Priority = trigger.Priority;
         State = state;

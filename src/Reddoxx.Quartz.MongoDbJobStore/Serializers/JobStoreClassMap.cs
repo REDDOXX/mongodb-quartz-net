@@ -46,7 +46,7 @@ internal static class JobStoreClassMap
                 map.MapIdProperty(x => x.Id);
 
                 map.MapProperty(x => x.Description)
-                   .SetIgnoreIfNull(true);
+                   .SetDefaultValue((string?)null);
 
                 map.MapProperty(detail => detail.JobType)
                    .SetSerializer(new TypeSerializer());
@@ -68,18 +68,6 @@ internal static class JobStoreClassMap
             }
         );
 
-        BsonClassMap.RegisterClassMap<DailyTimeIntervalTrigger>(map =>
-            {
-                map.AutoMap();
-
-                map.MapProperty(trigger => trigger.DaysOfWeek)
-                   .SetSerializer(
-                       new EnumerableInterfaceImplementerSerializer<HashSet<DayOfWeek>, DayOfWeek>(
-                           new EnumSerializer<DayOfWeek>(BsonType.String)
-                       )
-                   );
-            }
-        );
 
         BsonClassMap.RegisterClassMap<Calendar>(map =>
             {
@@ -100,7 +88,7 @@ internal static class JobStoreClassMap
                    .SetSerializer(new DateTimeOffsetSerializer(BsonType.DateTime));
 
                 map.MapProperty(x => x.Scheduled)
-                   .SetSerializer(new DateTimeOffsetSerializer(BsonType.DateTime));
+                   .SetSerializer(NullableSerializer.Create(new DateTimeOffsetSerializer(BsonType.DateTime)));
 
                 map.MapProperty(x => x.State)
                    .SetSerializer(new EnumSerializer<LocalTriggerState>(BsonType.String));
@@ -176,15 +164,15 @@ internal static class JobStoreClassMap
                 map.MapIdProperty(x => x.Id);
 
                 map.MapProperty(x => x.Description)
-                   .SetIgnoreIfNull(true);
+                   .SetDefaultValue((string?)null);
 
                 map.MapProperty(x => x.NextFireTime)
-                   .SetIgnoreIfNull(true)
-                   .SetSerializer(new DateTimeOffsetSerializer(BsonType.DateTime));
+                   .SetDefaultValue((DateTimeOffset?)null)
+                   .SetSerializer(NullableSerializer.Create(new DateTimeOffsetSerializer(BsonType.DateTime)));
 
                 map.MapProperty(x => x.PreviousFireTime)
-                   .SetIgnoreIfNull(true)
-                   .SetSerializer(new DateTimeOffsetSerializer(BsonType.DateTime));
+                   .SetDefaultValue((DateTimeOffset?)null)
+                   .SetSerializer(NullableSerializer.Create(new DateTimeOffsetSerializer(BsonType.DateTime)));
 
                 map.MapProperty(x => x.State)
                    .SetSerializer(new EnumSerializer<LocalTriggerState>(BsonType.String));
@@ -193,11 +181,11 @@ internal static class JobStoreClassMap
                    .SetSerializer(new DateTimeOffsetSerializer(BsonType.DateTime));
 
                 map.MapProperty(x => x.EndTime)
-                   .SetIgnoreIfNull(true)
-                   .SetSerializer(new DateTimeOffsetSerializer(BsonType.DateTime));
+                   .SetDefaultValue((DateTimeOffset?)null)
+                   .SetSerializer(NullableSerializer.Create(new DateTimeOffsetSerializer(BsonType.DateTime)));
 
                 map.MapProperty(x => x.CalendarName)
-                   .SetIgnoreIfNull(true);
+                   .SetDefaultValue((string?)null);
 
                 map.SetIsRootClass(isRootClass: true);
             }
@@ -304,7 +292,14 @@ internal static class JobStoreClassMap
                    .SetSerializer(new EnumSerializer<IntervalUnit>(BsonType.String));
 
                 map.MapProperty(x => x.EndTimeOfDay)
-                   .SetIgnoreIfNull(true);
+                   .SetDefaultValue((TimeOfDay?)null);
+
+                map.MapProperty(trigger => trigger.DaysOfWeek)
+                   .SetSerializer(
+                       new EnumerableInterfaceImplementerSerializer<HashSet<DayOfWeek>, DayOfWeek>(
+                           new EnumSerializer<DayOfWeek>(BsonType.String)
+                       )
+                   );
 
 
                 map.MapCreator(x => new DailyTimeIntervalTrigger(

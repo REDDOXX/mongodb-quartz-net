@@ -1,9 +1,12 @@
+using JetBrains.Annotations;
+
 using MongoDB.Bson;
 
 using Quartz;
 
 namespace Reddoxx.Quartz.MongoDbJobStore.Models;
 
+[UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
 internal class Calendar
 {
     public ObjectId Id { get; init; }

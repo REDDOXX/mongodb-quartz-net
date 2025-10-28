@@ -1,3 +1,5 @@
+using JetBrains.Annotations;
+
 using MongoDB.Bson;
 
 using Quartz;
@@ -6,6 +8,7 @@ using Quartz.Spi;
 
 namespace Reddoxx.Quartz.MongoDbJobStore.Models;
 
+[UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
 internal class CronTrigger : Trigger
 {
     public string? CronExpression { get; init; }

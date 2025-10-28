@@ -394,7 +394,7 @@ public partial class MongoDbJobStore
     {
         var trigger = await _triggerRepository.GetTrigger(triggerKey);
 
-        if (trigger?.NextFireTime == null || trigger.NextFireTime == DateTime.MinValue)
+        if (trigger?.NextFireTime == null || trigger.NextFireTime == DateTimeOffset.MinValue)
         {
             return;
         }

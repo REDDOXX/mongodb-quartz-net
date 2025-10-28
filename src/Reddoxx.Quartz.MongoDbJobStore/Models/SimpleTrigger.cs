@@ -1,3 +1,5 @@
+using JetBrains.Annotations;
+
 using MongoDB.Bson;
 
 using Quartz;
@@ -6,13 +8,14 @@ using Quartz.Spi;
 
 namespace Reddoxx.Quartz.MongoDbJobStore.Models;
 
+[UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
 internal class SimpleTrigger : Trigger
 {
-    public int RepeatCount { get; }
+    public int RepeatCount { get; init; }
 
-    public TimeSpan RepeatInterval { get; }
+    public TimeSpan RepeatInterval { get; init; }
 
-    public int TimesTriggered { get; }
+    public int TimesTriggered { get; init; }
 
 
     public SimpleTrigger(
