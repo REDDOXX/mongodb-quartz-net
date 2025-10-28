@@ -804,6 +804,51 @@ public partial class MongoDbJobStore
         return acquiredTriggers;
     }
 
+    private async Task<bool> ReplaceTriggerInternal(TriggerKey triggerKey, IOperableTrigger newTrigger)
+    {
+        // SELECT
+        //  J.JOB_NAME,
+        //  J.JOB_GROUP,
+        //  J.IS_DURABLE,
+        //  J.JOB_CLASS_NAME,
+        //  J.REQUESTS_RECOVERY
+        // FROM
+        //  TRIGGERS T,
+        //  JOB_DETAILS J
+        // WHERE
+        //  T.SCHED_NAME = @schedulerName AND
+        //  T.SCHED_NAME = J.SCHED_NAME AND
+        //  T.TRIGGER_NAME = @triggerName AND
+        //  T.TRIGGER_GROUP = @triggerGroup AND
+        //  T.JOB_NAME = J.JOB_NAME AND
+        //  T.JOB_GROUP = J.JOB_GROUP
+
+
+        var trigger = await _triggerRepository.GetTrigger(triggerKey);
+        if (trigger == null)
+        {
+            return false;
+        }
+
+        var result = await _jobDetailRepository.GetJob(trigger.JobKey);
+        var job = result?.GetJobDetail();
+
+        if (job == null)
+        {
+            return false;
+        }
+
+        if (!newTrigger.JobKey.Equals(job.Key))
+        {
+            throw new JobPersistenceException("New trigger is not related to the same job as the old trigger.");
+        }
+
+        var removedTrigger = await _triggerRepository.DeleteTrigger(triggerKey);
+        await StoreTriggerInternal(newTrigger, job, false, LocalTriggerState.Waiting, false, false);
+        return removedTrigger > 0;
+    }
+
+
     private string GetFiredTriggerRecordId()
     {
         Interlocked.Increment(ref _fireTriggerRecordCounter);

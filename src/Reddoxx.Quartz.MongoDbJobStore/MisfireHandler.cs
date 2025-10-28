@@ -16,31 +16,22 @@ internal class MisfireHandler
     private int _numFails;
 
     private readonly CancellationTokenSource _cancellationTokenSource = new();
-    private readonly QueuedTaskScheduler _taskScheduler;
     private Task? _task;
 
 
     public MisfireHandler(MongoDbJobStore jobStore)
     {
         _jobStore = jobStore;
-
-        var threadName = $"QuartzScheduler_{_jobStore.InstanceName}-{_jobStore.InstanceId}_MisfireHandler";
-        _taskScheduler = new QueuedTaskScheduler(
-            threadCount: 1,
-            threadName: threadName,
-            useForegroundThreads: !_jobStore.MakeThreadsDaemons
-        );
     }
 
-    public void Initialize()
+    public async Task Initialize(CancellationToken cancellationToken = default)
     {
-        _task = Task.Factory.StartNew(
-                () => Run(_cancellationTokenSource.Token),
-                CancellationToken.None,
-                TaskCreationOptions.HideScheduler,
-                _taskScheduler
-            )
-            .Unwrap();
+        _task = await Task.Factory.StartNew(
+            async () => await Run(_cancellationTokenSource.Token),
+            cancellationToken,
+            TaskCreationOptions.LongRunning,
+            TaskScheduler.Default
+        );
     }
 
     public async Task Shutdown()
@@ -51,9 +42,7 @@ internal class MisfireHandler
 
         try
         {
-            _taskScheduler.Dispose();
-
-            await _task.ConfigureAwait(false);
+            await _task;
         }
         catch (OperationCanceledException)
         {
@@ -68,7 +57,7 @@ internal class MisfireHandler
 
             var now = DateTime.UtcNow;
 
-            var recoverResult = await Manage().ConfigureAwait(false);
+            var recoverResult = await Manage();
             if (recoverResult.ProcessedMisfiredTriggerCount > 0)
             {
                 _jobStore.SignalSchedulingChangeImmediately(recoverResult.EarliestNewTime);
@@ -91,7 +80,7 @@ internal class MisfireHandler
                 }
             }
 
-            await Task.Delay(timeToSleep, cancellationToken).ConfigureAwait(false);
+            await Task.Delay(timeToSleep, cancellationToken);
         }
     }
 
@@ -101,7 +90,7 @@ internal class MisfireHandler
         {
             _logger.LogDebug("Scanning for misfires...");
 
-            var result = await _jobStore.DoRecoverMisfires().ConfigureAwait(false);
+            var result = await _jobStore.DoRecoverMisfires();
             _numFails = 0;
             return result;
         }

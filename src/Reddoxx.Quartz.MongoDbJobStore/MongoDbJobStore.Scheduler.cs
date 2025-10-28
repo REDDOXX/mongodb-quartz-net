@@ -30,7 +30,7 @@ public partial class MongoDbJobStore
         }
 
         _misfireHandler = new MisfireHandler(this);
-        _misfireHandler.Initialize();
+        await _misfireHandler.Initialize(cancellationToken);
         _schedulerRunning = true;
     }
 
