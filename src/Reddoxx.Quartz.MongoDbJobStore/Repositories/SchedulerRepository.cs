@@ -13,14 +13,11 @@ internal class SchedulerRepository : BaseRepository<Scheduler>
 
     public override async Task EnsureIndex()
     {
-        // PRIMARY KEY (sched_name,instance_name)
+        // PK_QRTZ_SCHEDULER_STATE
         await Collection.Indexes.CreateOneAsync(
             new CreateIndexModel<Scheduler>(
-                IndexBuilder.Combine(
-                    //
-                    IndexBuilder.Ascending(x => x.SchedulerName),
-                    IndexBuilder.Ascending(x => x.InstanceId)
-                ),
+                IndexBuilder.Ascending(x => x.SchedulerName)
+                            .Ascending(x => x.InstanceId),
                 new CreateIndexOptions
                 {
                     Unique = true,
@@ -37,16 +34,7 @@ internal class SchedulerRepository : BaseRepository<Scheduler>
         // AddCommandParameter(cmd, "schedulerName", schedName);
         // AddCommandParameter(cmd, "instanceName", instanceName);
 
-        await Collection.InsertOneAsync(
-                new Scheduler
-                {
-                    SchedulerName = InstanceName,
-                    InstanceId = instanceId,
-                    LastCheckIn = checkInTime.UtcDateTime,
-                    CheckInInterval = interval,
-                }
-            )
-            .ConfigureAwait(false);
+        await Collection.InsertOneAsync(new Scheduler(InstanceName, instanceId, checkInTime, interval));
     }
 
     /// <summary>
@@ -61,7 +49,7 @@ internal class SchedulerRepository : BaseRepository<Scheduler>
         var filter = FilterBuilder.Eq(x => x.SchedulerName, InstanceName) &
                      FilterBuilder.Eq(x => x.InstanceId, instanceId);
 
-        await Collection.DeleteOneAsync(filter).ConfigureAwait(false);
+        await Collection.DeleteOneAsync(filter);
     }
 
     public async Task<long> UpdateState(string instanceId, DateTimeOffset lastCheckIn)
@@ -77,7 +65,7 @@ internal class SchedulerRepository : BaseRepository<Scheduler>
 
         var update = UpdateBuilder.Set(sch => sch.LastCheckIn, lastCheckIn.UtcDateTime);
 
-        var result = await Collection.UpdateOneAsync(filter, update).ConfigureAwait(false);
+        var result = await Collection.UpdateOneAsync(filter, update);
         return result.ModifiedCount;
     }
 
@@ -93,6 +81,7 @@ internal class SchedulerRepository : BaseRepository<Scheduler>
             filter &= FilterBuilder.Eq(x => x.InstanceId, instanceId);
         }
 
-        return await Collection.Find(filter).ToListAsync();
+        return await Collection.Find(filter)
+                               .ToListAsync();
     }
 }

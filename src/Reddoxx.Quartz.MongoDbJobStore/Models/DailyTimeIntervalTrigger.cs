@@ -1,9 +1,6 @@
-using System.Diagnostics.CodeAnalysis;
-
 using JetBrains.Annotations;
 
 using MongoDB.Bson;
-using MongoDB.Bson.Serialization.Attributes;
 
 using Quartz;
 using Quartz.Impl.Triggers;
@@ -14,31 +11,77 @@ namespace Reddoxx.Quartz.MongoDbJobStore.Models;
 [UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
 internal class DailyTimeIntervalTrigger : Trigger
 {
-    public int RepeatCount { get; set; }
+    public int RepeatCount { get; init; }
 
-    [BsonRepresentation(BsonType.String)]
-    public IntervalUnit RepeatIntervalUnit { get; set; }
+    public IntervalUnit RepeatIntervalUnit { get; init; }
 
-    public int RepeatInterval { get; set; }
+    public int RepeatInterval { get; init; }
 
-    public required TimeOfDay StartTimeOfDay { get; set; }
+    public TimeOfDay StartTimeOfDay { get; init; }
 
-    [BsonIgnoreIfNull]
-    public TimeOfDay? EndTimeOfDay { get; set; }
+    public TimeOfDay? EndTimeOfDay { get; init; }
 
-    public HashSet<DayOfWeek> DaysOfWeek { get; set; } = [];
+    public HashSet<DayOfWeek> DaysOfWeek { get; init; }
 
-    public int TimesTriggered { get; set; }
+    public int TimesTriggered { get; init; }
 
-    public required string TimeZone { get; set; }
+    public string TimeZone { get; init; }
 
 
-    public DailyTimeIntervalTrigger()
+    public DailyTimeIntervalTrigger(
+        ObjectId id,
+        string instanceName,
+        string name,
+        string group,
+        string? description,
+        DateTimeOffset? nextFireTime,
+        DateTimeOffset? previousFireTime,
+        LocalTriggerState state,
+        DateTimeOffset startTime,
+        DateTimeOffset? endTime,
+        string? calendarName,
+        int misfireInstruction,
+        int priority,
+        JobDataMap jobDataMap,
+        JobKey jobKey,
+        int repeatCount,
+        IntervalUnit repeatIntervalUnit,
+        int repeatInterval,
+        TimeOfDay startTimeOfDay,
+        TimeOfDay? endTimeOfDay,
+        HashSet<DayOfWeek> daysOfWeek,
+        int timesTriggered,
+        string timeZone
+    )
+        : base(
+            id,
+            instanceName,
+            name,
+            group,
+            description,
+            nextFireTime,
+            previousFireTime,
+            state,
+            startTime,
+            endTime,
+            calendarName,
+            misfireInstruction,
+            priority,
+            jobDataMap,
+            jobKey
+        )
     {
+        RepeatCount = repeatCount;
+        RepeatIntervalUnit = repeatIntervalUnit;
+        RepeatInterval = repeatInterval;
+        StartTimeOfDay = startTimeOfDay;
+        EndTimeOfDay = endTimeOfDay;
+        DaysOfWeek = daysOfWeek;
+        TimesTriggered = timesTriggered;
+        TimeZone = timeZone;
     }
 
-    [SetsRequiredMembers]
-    public DailyTimeIntervalTrigger(IDailyTimeIntervalTrigger trigger, TriggerState state, string instanceName)
+    public DailyTimeIntervalTrigger(IDailyTimeIntervalTrigger trigger, LocalTriggerState state, string instanceName)
         : base(trigger, state, instanceName)
     {
         RepeatCount = trigger.RepeatCount;
@@ -64,7 +107,9 @@ internal class DailyTimeIntervalTrigger : Trigger
             TimesTriggered = TimesTriggered,
             TimeZone = TimeZoneInfo.FindSystemTimeZoneById(TimeZone),
         };
+
         FillTrigger(trigger);
+
         return trigger;
     }
 }

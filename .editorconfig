@@ -61,6 +61,8 @@ dotnet_separate_import_directive_groups = true
 
 # IDE0290: Use primary constructor
 csharp_style_prefer_primary_constructors = false
+dotnet_diagnostic.IDE0290.severity = none
+
 
 #
 ### Formatting rules ###
@@ -306,7 +308,9 @@ resharper_csharp_wrap_arguments_style = chop_if_long
 
 # method call wrappings
 resharper_csharp_wrap_after_dot_in_method_calls = false
-resharper_csharp_wrap_chained_method_calls = chop_if_long
+resharper_csharp_wrap_chained_method_calls = chop_always
+# resharper_csharp_wrap_before_first_method_call = false
+# resharper_csharp_wrap_after_property_in_chained_method_calls = false
 
 resharper_csharp_wrap_before_binary_opsign = false
 
@@ -337,6 +341,10 @@ resharper_csharp_keep_existing_arrangement = false
 resharper_csharp_outdent_statement_labels = true
 resharper_place_attribute_on_same_line = never
 resharper_wrap_chained_binary_expressions = chop_if_long
+
+resharper_csharp_align_multiline_calls_chain = true
+
+
 
 #
 ##### Additional #####
@@ -381,10 +389,13 @@ dotnet_diagnostic.MA0072.severity = none
 dotnet_diagnostic.MA0082.severity = none
 dotnet_diagnostic.MA0039.severity = none
 
- # MA0048: File name must match type name
+# MA0002 - IEqualityComparer<string> or IComparer<string> is missing
+dotnet_diagnostic.MA0002.severity = none
+
+# MA0048: File name must match type name
 dotnet_diagnostic.MA0048.severity = none
 
- # MA0007: Add a comma after the last value
+# MA0007: Add a comma after the last value
 dotnet_diagnostic.MA0007.severity = warning
 
 # ConfigureAwait(false) is no longer needed in .net core apps
@@ -394,7 +405,23 @@ dotnet_diagnostic.MA0004.severity = none
 # Disable interface colleciton type detection as it is disallowed in service stack models
 dotnet_diagnostic.MA0016.severity = none
 
+dotnet_diagnostic.MA0076.severity = none
+
+dotnet_diagnostic.MA0026.severity = none
 
 MA0051.maximum_lines_per_method = 100
 
+
+# Mapperly
+
+dotnet_diagnostic.RMG020.severity = error
+dotnet_diagnostic.RMG012.severity = error
+dotnet_diagnostic.RMG089.severity = error
+
+# MediatorGenerator
+dotnet_diagnostic.MSG0005.severity = error
+
+# VSTHR
+
+dotnet_diagnostic.VSTHRD200.severity = none
 

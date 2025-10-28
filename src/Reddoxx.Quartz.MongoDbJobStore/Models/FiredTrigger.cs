@@ -1,10 +1,8 @@
-using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 
 using JetBrains.Annotations;
 
 using MongoDB.Bson;
-using MongoDB.Bson.Serialization.Attributes;
 
 using Quartz;
 using Quartz.Impl.Triggers;
@@ -12,87 +10,115 @@ using Quartz.Spi;
 
 namespace Reddoxx.Quartz.MongoDbJobStore.Models;
 
-[UsedImplicitly(ImplicitUseTargetFlags.Members)]
+[UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
 internal class FiredTrigger
 {
-    [BsonId]
-    public ObjectId Id { get; set; }
+    public ObjectId Id { get; init; }
 
     /// <summary>
     /// </summary>
     /// <remarks>Also called sched_name</remarks>
-    public required string InstanceName { get; set; }
+    public string InstanceName { get; init; }
 
     /// <summary>
     /// </summary>
     /// <remarks>Also called entry_id</remarks>
-    public required string FiredInstanceId { get; set; }
+    public string FiredInstanceId { get; init; }
 
 
     /// <summary>
     /// trigger_name, trigger_group
     /// </summary>
-    public required TriggerKey TriggerKey { get; set; }
+    public TriggerKey TriggerKey { get; init; }
 
     /// <summary>
     /// job_name, job_group
     /// </summary>
-    public JobKey JobKey { get; set; }
+    public JobKey? JobKey { get; init; }
 
     /// <summary>
     /// instance_name
     /// </summary>
-    public required string InstanceId { get; set; }
+    public string InstanceId { get; init; }
 
     /// <summary>
     /// fired_time
     /// </summary>
-    [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
-    public DateTime Fired { get; set; }
+    public DateTimeOffset Fired { get; init; }
 
     /// <summary>
     /// sched_time
     /// </summary>
-    [BsonRepresentation(BsonType.DateTime)]
-    public DateTimeOffset? Scheduled { get; set; }
+    public DateTimeOffset? Scheduled { get; init; }
 
     /// <summary>
     /// priority
     /// </summary>
-    public int Priority { get; set; }
+    public int Priority { get; init; }
 
     /// <summary>
     /// state
     /// </summary>
-    [BsonRepresentation(BsonType.String)]
-    public required TriggerState State { get; set; }
+    public LocalTriggerState State { get; init; }
 
     /// <summary>
     /// is_nonconcurrent
     /// </summary>
-    public bool ConcurrentExecutionDisallowed { get; set; }
+    public bool ConcurrentExecutionDisallowed { get; init; }
 
     /// <summary>
     /// requests_recovery
     /// </summary>
-    public bool RequestsRecovery { get; set; }
+    public bool RequestsRecovery { get; init; }
 
 
-    public FiredTrigger()
+    public FiredTrigger(
+        ObjectId id,
+        string instanceName,
+        string firedInstanceId,
+        TriggerKey triggerKey,
+        JobKey? jobKey,
+        string instanceId,
+        DateTimeOffset fired,
+        DateTimeOffset? scheduled,
+        int priority,
+        LocalTriggerState state,
+        bool concurrentExecutionDisallowed,
+        bool requestsRecovery
+    )
     {
+        Id = id;
+        InstanceName = instanceName;
+        FiredInstanceId = firedInstanceId;
+        TriggerKey = triggerKey;
+        JobKey = jobKey;
+        InstanceId = instanceId;
+        Fired = fired;
+        Scheduled = scheduled;
+        Priority = priority;
+        State = state;
+        ConcurrentExecutionDisallowed = concurrentExecutionDisallowed;
+        RequestsRecovery = requestsRecovery;
     }
 
-    [SetsRequiredMembers]
-    public FiredTrigger(string firedInstanceId, Trigger trigger, JobDetail? jobDetail)
+    public FiredTrigger(
+        string firedInstanceId,
+        Trigger trigger,
+        JobDetail? jobDetail,
+        string instanceId,
+        LocalTriggerState state
+    )
     {
+        Id = ObjectId.GenerateNewId();
         InstanceName = trigger.InstanceName;
         FiredInstanceId = firedInstanceId;
+        InstanceId = instanceId;
 
         TriggerKey = trigger.GetTriggerKey();
-        Fired = DateTime.UtcNow;
+        Fired = DateTimeOffset.UtcNow;
         Scheduled = trigger.NextFireTime;
         Priority = trigger.Priority;
-        State = trigger.State;
+        State = state;
 
         if (jobDetail != null)
         {
@@ -104,15 +130,13 @@ internal class FiredTrigger
 
     public IOperableTrigger GetRecoveryTrigger(JobDataMap jobDataMap)
     {
-        var firedTime = new DateTimeOffset(Fired);
         var scheduledTime = Scheduled ?? DateTimeOffset.MinValue;
 
         var name = $"recover_{InstanceId}_{Guid.NewGuid()}";
 
         var recoveryTrigger = new SimpleTriggerImpl(name, SchedulerConstants.DefaultRecoveryGroup, scheduledTime)
         {
-            JobName = JobKey.Name,
-            JobGroup = JobKey.Group,
+            JobKey = JobKey!,
             Priority = Priority,
             MisfireInstruction = MisfireInstruction.IgnoreMisfirePolicy,
             JobDataMap = jobDataMap,
@@ -122,7 +146,7 @@ internal class FiredTrigger
         recoveryTrigger.JobDataMap.Put(SchedulerConstants.FailedJobOriginalTriggerGroup, TriggerKey.Group);
         recoveryTrigger.JobDataMap.Put(
             SchedulerConstants.FailedJobOriginalTriggerFiretime,
-            Convert.ToString(firedTime, CultureInfo.InvariantCulture)
+            Convert.ToString(Fired, CultureInfo.InvariantCulture)
         );
         recoveryTrigger.JobDataMap.Put(
             SchedulerConstants.FailedJobOriginalTriggerScheduledFiretime,

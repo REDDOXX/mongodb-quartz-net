@@ -1,10 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<TargetFrameworks>net9.0; net8.0</TargetFrameworks>
-
-		<ImplicitUsings>enable</ImplicitUsings>
-		<Nullable>enable</Nullable>
 
 		<GenerateAssemblyTitleAttribute>false</GenerateAssemblyTitleAttribute>
 		<GenerateAssemblyDescriptionAttribute>false</GenerateAssemblyDescriptionAttribute>
@@ -28,8 +24,8 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<PackageReference Include="DistributedLock.Redis" Version="1.0.3" />
-		<PackageReference Include="StackExchange.Redis.Extensions.Core" Version="11.0.0" />
+		<PackageReference Include="DistributedLock.Redis" />
+		<PackageReference Include="StackExchange.Redis.Extensions.Core" />
 	</ItemGroup>
 
 	<ItemGroup>

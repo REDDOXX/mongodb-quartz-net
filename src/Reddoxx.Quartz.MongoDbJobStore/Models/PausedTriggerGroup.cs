@@ -1,18 +1,35 @@
+using JetBrains.Annotations;
+
 using MongoDB.Bson;
-using MongoDB.Bson.Serialization.Attributes;
 
 namespace Reddoxx.Quartz.MongoDbJobStore.Models;
 
+[UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
 internal class PausedTriggerGroup
 {
-    [BsonId]
-    public ObjectId Id { get; set; }
+    public ObjectId Id { get; init; }
 
     /// <summary>
     /// 
     /// </summary>
     /// <remarks>This is also called sched_name</remarks>
-    public required string InstanceName { get; set; }
+    public string InstanceName { get; init; }
 
-    public required string Group { get; set; }
+    public string Group { get; init; }
+
+    public PausedTriggerGroup(ObjectId id, string instanceName, string group)
+    {
+        Id = id;
+        InstanceName = instanceName;
+        Group = group;
+    }
+
+
+    public PausedTriggerGroup(string instanceName, string group)
+    {
+        Id = ObjectId.GenerateNewId();
+
+        InstanceName = instanceName;
+        Group = group;
+    }
 }

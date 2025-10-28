@@ -19,13 +19,13 @@ internal class LockRepository : BaseRepository<SchedulerLock>
     {
     }
 
-
     public override async Task EnsureIndex()
     {
-        // Create: (sched_name,lock_name) uniqueness
+        // PK_QRTZ_LOCKS
         await Collection.Indexes.CreateOneAsync(
             new CreateIndexModel<SchedulerLock>(
-                IndexBuilder.Ascending(x => x.InstanceName).Ascending(x => x.LockType),
+                IndexBuilder.Ascending(x => x.InstanceName)
+                            .Ascending(x => x.LockType),
                 new CreateIndexOptions
                 {
                     Unique = true,
@@ -33,6 +33,7 @@ internal class LockRepository : BaseRepository<SchedulerLock>
             )
         );
     }
+
 
     public async Task AcquireLock(
         IClientSessionHandle session,
@@ -78,12 +79,12 @@ internal class LockRepository : BaseRepository<SchedulerLock>
                     count < maxRetryLocal
                 );
 
-                await session.AbortTransactionAsync(cancellationToken).ConfigureAwait(false);
+                await session.AbortTransactionAsync(cancellationToken);
 
                 if (count < maxRetryLocal)
                 {
                     // pause a bit to give another thread some time to commit the insert of the new lock row
-                    await Task.Delay(retryPeriodLocal, cancellationToken).ConfigureAwait(false);
+                    await Task.Delay(retryPeriodLocal, cancellationToken);
 
                     // try again ...
                     continue;
@@ -105,12 +106,11 @@ internal class LockRepository : BaseRepository<SchedulerLock>
         var update = UpdateBuilder.Set(x => x.LockKey, ObjectId.GenerateNewId());
 
         var result = await Collection.FindOneAndUpdateAsync(
-                session,
-                filter,
-                update,
-                cancellationToken: cancellationToken
-            )
-            .ConfigureAwait(false);
+            session,
+            filter,
+            update,
+            cancellationToken: cancellationToken
+        );
 
         if (result == null)
         {
@@ -121,16 +121,10 @@ internal class LockRepository : BaseRepository<SchedulerLock>
             );
 
             await Collection.InsertOneAsync(
-                    session,
-                    new SchedulerLock
-                    {
-                        InstanceName = InstanceName,
-                        LockType = lockType,
-                        LockKey = ObjectId.GenerateNewId(),
-                    },
-                    cancellationToken: cancellationToken
-                )
-                .ConfigureAwait(false);
+                session,
+                new SchedulerLock(InstanceName, lockType, ObjectId.GenerateNewId()),
+                cancellationToken: cancellationToken
+            );
         }
 
         _logger.LogDebug("Acquired lock for {InstanceName}/{LockType}", InstanceName, lockType);

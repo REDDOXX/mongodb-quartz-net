@@ -10,17 +10,21 @@ public class ClusteringTests : BaseStoreTests, IDisposable
 
     public ClusteringTests()
     {
-        _scheduler = CreateScheduler(clustered: true).Result;
-        _scheduler.Clear().Wait();
+        _scheduler = CreateScheduler(clustered: true)
+            .Result;
+
+        _scheduler.Clear()
+                  .Wait();
     }
 
     public void Dispose()
     {
-        _scheduler.Shutdown().Wait();
+        _scheduler.Shutdown()
+                  .Wait();
         GC.SuppressFinalize(this);
     }
 
-    [Fact]
+    [Test]
     public async Task TestSqlServerJobStore()
     {
         try

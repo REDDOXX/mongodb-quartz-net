@@ -14,7 +14,10 @@ internal class JobDataMapSerializer : SerializerBase<JobDataMap>
 
     public override void Serialize(BsonSerializationContext context, BsonSerializationArgs args, JobDataMap value)
     {
-        var map = value.WrappedMap as Dictionary<string, object> ?? throw new InvalidOperationException();
+        if (value.WrappedMap is not Dictionary<string, object> map)
+        {
+            throw new InvalidOperationException("Wrapped map has an invalid type");
+        }
 
         _serializer.Serialize(context, args, map);
     }

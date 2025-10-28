@@ -1,49 +1,62 @@
-using System.Diagnostics.CodeAnalysis;
-
 using JetBrains.Annotations;
 
 using MongoDB.Bson;
-using MongoDB.Bson.Serialization.Attributes;
 
 namespace Reddoxx.Quartz.MongoDbJobStore.Models;
 
 [UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
 internal class Scheduler
 {
-    [BsonId]
-    public ObjectId Id { get; set; }
+    public ObjectId Id { get; init; }
 
     /// <summary>
     /// sched_name
     /// </summary>
-    [BsonRequired]
-    public required string SchedulerName { get; set; }
+    public string SchedulerName { get; init; }
 
     /// <summary>
     /// instance_name
     /// </summary>
-    [BsonRequired]
-    public required string InstanceId { get; set; }
+    public string InstanceId { get; init; }
 
     /// <summary>
     /// last_checkin_time
     /// </summary>
-    public DateTime LastCheckIn { get; set; }
+    public DateTimeOffset LastCheckIn { get; init; }
 
     /// <summary>
     /// checkin_interval
     /// </summary>
-    public TimeSpan CheckInInterval { get; set; }
+    public TimeSpan CheckInInterval { get; init; }
 
 
-    public Scheduler()
+    public Scheduler(
+        ObjectId id,
+        string schedulerName,
+        string instanceId,
+        DateTimeOffset lastCheckIn,
+        TimeSpan checkInInterval
+    )
+    {
+        Id = id;
+        SchedulerName = schedulerName;
+        InstanceId = instanceId;
+        LastCheckIn = lastCheckIn;
+        CheckInInterval = checkInInterval;
+    }
+
+
+    public Scheduler(string schedulerName, string instanceId)
+        : this(schedulerName, instanceId, DateTimeOffset.MinValue, TimeSpan.Zero)
     {
     }
 
-    [SetsRequiredMembers]
-    public Scheduler(string schedulerName, string instanceId)
+    public Scheduler(string schedulerName, string instanceId, DateTimeOffset lastCheckIn, TimeSpan checkInInterval)
     {
+        Id = ObjectId.GenerateNewId();
         SchedulerName = schedulerName;
         InstanceId = instanceId;
+        LastCheckIn = lastCheckIn;
+        CheckInInterval = checkInInterval;
     }
 }

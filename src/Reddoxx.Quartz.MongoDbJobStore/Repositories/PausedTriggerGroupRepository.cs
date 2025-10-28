@@ -17,14 +17,11 @@ internal class PausedTriggerGroupRepository : BaseRepository<PausedTriggerGroup>
 
     public override async Task EnsureIndex()
     {
-        // PRIMARY KEY (sched_name,trigger_group)
+        // PK_QRTZ_PAUSED_TRIGGER_GRPS
         await Collection.Indexes.CreateOneAsync(
             new CreateIndexModel<PausedTriggerGroup>(
-                IndexBuilder.Combine(
-                    //
-                    IndexBuilder.Ascending(x => x.InstanceName),
-                    IndexBuilder.Ascending(x => x.Group)
-                ),
+                IndexBuilder.Ascending(x => x.InstanceName)
+                            .Ascending(x => x.Group),
                 new CreateIndexOptions
                 {
                     Unique = true,
@@ -44,11 +41,10 @@ internal class PausedTriggerGroupRepository : BaseRepository<PausedTriggerGroup>
         var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName);
 
         return await Collection
-            //
-            .Find(filter)
-            .Project(group => group.Group)
-            .ToListAsync()
-            .ConfigureAwait(false);
+                     //
+                     .Find(filter)
+                     .Project(group => group.Group)
+                     .ToListAsync();
     }
 
     public async Task<bool> IsTriggerGroupPaused(string group)
@@ -57,24 +53,17 @@ internal class PausedTriggerGroupRepository : BaseRepository<PausedTriggerGroup>
         var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) & //
                      FilterBuilder.Eq(x => x.Group, group);
 
-        return await Collection
-            //
-            .Find(filter)
-            .AnyAsync()
-            .ConfigureAwait(false);
+        return await Collection.Find(filter)
+                               .AnyAsync();
     }
 
     public async Task AddPausedTriggerGroup(string group)
     {
         // INSERT INTO PAUSED_TRIGGER_GRPS (SCHED_NAME, TRIGGER_GROUP) VALUES (@schedulerName, @triggerGroup)
-        await Collection.InsertOneAsync(
-                new PausedTriggerGroup
-                {
-                    InstanceName = InstanceName,
-                    Group = group,
-                }
-            )
-            .ConfigureAwait(false);
+
+        var triggerGroup = new PausedTriggerGroup(InstanceName, group);
+
+        await Collection.InsertOneAsync(triggerGroup);
     }
 
     public async Task DeletePausedTriggerGroup(GroupMatcher<TriggerKey> matcher)
@@ -83,7 +72,7 @@ internal class PausedTriggerGroupRepository : BaseRepository<PausedTriggerGroup>
         var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) &
                      FilterBuilder.Regex(x => x.Group, matcher.ToBsonRegularExpression());
 
-        await Collection.DeleteManyAsync(filter).ConfigureAwait(false);
+        await Collection.DeleteManyAsync(filter);
     }
 
     public async Task DeletePausedTriggerGroup(string groupName)
@@ -92,6 +81,6 @@ internal class PausedTriggerGroupRepository : BaseRepository<PausedTriggerGroup>
         var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) & // 
                      FilterBuilder.Eq(x => x.Group, groupName);
 
-        await Collection.DeleteOneAsync(filter).ConfigureAwait(false);
+        await Collection.DeleteOneAsync(filter);
     }
 }

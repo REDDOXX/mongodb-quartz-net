@@ -1,7 +1,6 @@
 using JetBrains.Annotations;
 
 using MongoDB.Bson;
-using MongoDB.Bson.Serialization.Attributes;
 
 namespace Reddoxx.Quartz.MongoDbJobStore.Models;
 
@@ -16,25 +15,40 @@ public enum QuartzLockType
     StateAccess,
 }
 
+[UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
 internal class SchedulerLock
 {
-    [BsonId]
-    public ObjectId Id { get; set; }
+    public ObjectId Id { get; init; }
 
     /// <summary>
     /// SCHED_NAME
     /// </summary>
-    [BsonRequired]
-    public required string InstanceName { get; init; }
+    public string InstanceName { get; init; }
 
     /// <summary>
     /// LOCK_NAME
     /// </summary>
-    [BsonRepresentation(BsonType.String)]
     public QuartzLockType LockType { get; init; }
 
     /// <summary>
     /// Random lock key which is set when acquiring the lock with findOneAndUpdate.
     /// </summary>
     public ObjectId LockKey { get; init; }
+
+
+    public SchedulerLock(ObjectId id, string instanceName, QuartzLockType lockType, ObjectId lockKey)
+    {
+        Id = id;
+        InstanceName = instanceName;
+        LockType = lockType;
+        LockKey = lockKey;
+    }
+
+    public SchedulerLock(string instanceName, QuartzLockType lockType, ObjectId lockKey)
+    {
+        Id = ObjectId.GenerateNewId();
+        InstanceName = instanceName;
+        LockType = lockType;
+        LockKey = lockKey;
+    }
 }

@@ -14,6 +14,13 @@ public class DistributedLocksQuartzLockingManager : IQuartzJobStoreLockingManage
 {
     public static TimeSpan? AcquireTimeout { get; set; }
 
+    /// <summary>
+    /// Delays the task continuation after the lock has been released. This can be used
+    /// to improve the load distribution of the entire cluster, as one scheduler can not
+    /// re-acquire the lock directly after unlocking it.
+    /// </summary>
+    public static TimeSpan ReAcquireDelay { get; set; } = TimeSpan.Zero;
+
 
     private class RedisLockContext : IQuartzJobStoreLockingManager.ILockContext
     {
@@ -29,7 +36,7 @@ public class DistributedLocksQuartzLockingManager : IQuartzJobStoreLockingManage
 
         public async ValueTask DisposeAsync()
         {
-            await UnlockResources().ConfigureAwait(false);
+            await UnlockResources();
         }
 
 
@@ -43,7 +50,7 @@ public class DistributedLocksQuartzLockingManager : IQuartzJobStoreLockingManage
 
             var @lock = new RedisDistributedLock(key, _database);
 
-            var handle = await @lock.TryAcquireAsync(TimeSpan.FromSeconds(5), cancellationToken).ConfigureAwait(false);
+            var handle = await @lock.TryAcquireAsync(TimeSpan.FromSeconds(5), cancellationToken);
             if (handle == null)
             {
                 throw new JobPersistenceException(
@@ -72,7 +79,7 @@ public class DistributedLocksQuartzLockingManager : IQuartzJobStoreLockingManage
 
                 try
                 {
-                    await handle.DisposeAsync().ConfigureAwait(false);
+                    await handle.DisposeAsync();
                 }
                 catch
                 {
@@ -114,9 +121,20 @@ public class DistributedLocksQuartzLockingManager : IQuartzJobStoreLockingManage
 
         var @lock = new RedisDistributedLock(key, redisDatabase.Database);
 
-        await using var _ = await @lock.AcquireAsync(AcquireTimeout, cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await using var _ = await @lock.AcquireAsync(AcquireTimeout, cancellationToken);
 
-        return await txCallback.Invoke().ConfigureAwait(false);
+            return await txCallback.Invoke();
+        }
+        finally
+        {
+            if (ReAcquireDelay > TimeSpan.Zero)
+            {
+                // Delays the continuation, to allow other schedulers in the cluster to acquire the lock
+                await Task.Delay(ReAcquireDelay, cancellationToken);
+            }
+        }
     }
 
 

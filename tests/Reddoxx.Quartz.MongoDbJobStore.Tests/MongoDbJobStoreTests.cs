@@ -1,13 +1,8 @@
-using FluentAssertions;
-
 using Quartz;
 using Quartz.Impl.Matchers;
 
 using Reddoxx.Quartz.MongoDbJobStore.Tests.Jobs;
 
-using Xunit;
-
-[assembly: CollectionBehavior(DisableTestParallelization = true)]
 
 namespace Reddoxx.Quartz.MongoDbJobStore.Tests;
 
@@ -17,68 +12,84 @@ public class MongoDbJobStoreTests : BaseStoreTests, IDisposable
 
     public MongoDbJobStoreTests()
     {
-        _scheduler = CreateScheduler().Result;
-        _scheduler.Clear().Wait();
+        _scheduler = CreateScheduler()
+            .Result;
+        _scheduler.Clear()
+                  .Wait();
     }
 
     public void Dispose()
     {
-        _scheduler.Shutdown().Wait();
+        _scheduler.Shutdown()
+                  .Wait();
 
         GC.SuppressFinalize(this);
     }
 
-    [Fact]
+    [Test]
     public async Task AddJobTest()
     {
-        var job = JobBuilder.Create<SimpleJob>().WithIdentity("j1").StoreDurably().Build();
+        var job = JobBuilder.Create<SimpleJob>()
+                            .WithIdentity("j1")
+                            .StoreDurably()
+                            .Build();
 
-        (await _scheduler.CheckExists(new JobKey("j1"))).Should().BeFalse();
+        await Assert.That(_scheduler.CheckExists(new JobKey("j1")))
+                    .IsFalse();
+
 
         await _scheduler.AddJob(job, false);
 
-        (await _scheduler.CheckExists(new JobKey("j1"))).Should().BeTrue();
+        await Assert.That(_scheduler.CheckExists(new JobKey("j1")))
+                    .IsTrue();
     }
 
-    [Fact]
+    [Test]
     public async Task RetrieveJobTest()
     {
-        var job = JobBuilder.Create<SimpleJob>().WithIdentity("j1").StoreDurably().Build();
+        var job = JobBuilder.Create<SimpleJob>()
+                            .WithIdentity("j1")
+                            .StoreDurably()
+                            .Build();
         await _scheduler.AddJob(job, false);
 
-        job = await _scheduler.GetJobDetail(new JobKey("j1"));
-
-        job.Should().NotBeNull();
+        await Assert.That(await _scheduler.GetJobDetail(new JobKey("j1")))
+                    .IsNotNull();
     }
 
-    [Fact]
+    [Test]
     public async Task AddTriggerTest()
     {
-        var job = JobBuilder.Create<SimpleJob>().WithIdentity("j1").StoreDurably().Build();
+        var job = JobBuilder.Create<SimpleJob>()
+                            .WithIdentity("j1")
+                            .StoreDurably()
+                            .Build();
 
         var trigger = TriggerBuilder.Create()
-            .WithIdentity("t1")
-            .ForJob(job)
-            .StartNow()
-            .WithSimpleSchedule(x => x.RepeatForever().WithIntervalInSeconds(5))
-            .Build();
+                                    .WithIdentity("t1")
+                                    .ForJob(job)
+                                    .StartNow()
+                                    .WithSimpleSchedule(x => x.RepeatForever()
+                                                              .WithIntervalInSeconds(5)
+                                    )
+                                    .Build();
 
-        (await _scheduler.CheckExists(new TriggerKey("t1"))).Should().BeFalse();
+        await Assert.That(await _scheduler.CheckExists(new TriggerKey("t1")))
+                    .IsFalse();
 
         await _scheduler.ScheduleJob(job, trigger);
 
-        (await _scheduler.CheckExists(new TriggerKey("t1"))).Should().BeTrue();
+        await Assert.That(await _scheduler.CheckExists(new TriggerKey("t1")))
+                    .IsTrue();
 
-        job = await _scheduler.GetJobDetail(new JobKey("j1"));
+        await Assert.That(await _scheduler.GetJobDetail(new JobKey("j1")))
+                    .IsNotNull();
 
-        job.Should().NotBeNull();
-
-        trigger = await _scheduler.GetTrigger(new TriggerKey("t1"));
-
-        trigger.Should().NotBeNull();
+        await Assert.That(await _scheduler.GetTrigger(new TriggerKey("t1")))
+                    .IsNotNull();
     }
 
-    [Fact]
+    [Test]
     public async Task GroupsTest()
     {
         await CreateJobsAndTriggers();
@@ -86,112 +97,145 @@ public class MongoDbJobStoreTests : BaseStoreTests, IDisposable
         var jobGroups = await _scheduler.GetJobGroupNames();
         var triggerGroups = await _scheduler.GetTriggerGroupNames();
 
-        jobGroups.Count.Should().Be(2, "Job group list size expected to be = 2 ");
-        triggerGroups.Count.Should().Be(2, "Trigger group list size expected to be = 2 ");
+        await Assert.That(jobGroups.Count)
+                    .IsEqualTo(2);
+        await Assert.That(triggerGroups.Count)
+                    .IsEqualTo(2);
 
         var jobKeys = await _scheduler.GetJobKeys(GroupMatcher<JobKey>.GroupEquals(JobKey.DefaultGroup));
         var triggerKeys =
             await _scheduler.GetTriggerKeys(GroupMatcher<TriggerKey>.GroupEquals(TriggerKey.DefaultGroup));
 
-        jobKeys.Count.Should().Be(1, "Number of jobs expected in default group was 1 ");
-        triggerKeys.Count.Should().Be(1, "Number of triggers expected in default group was 1 ");
+        await Assert.That(jobKeys.Count)
+                    .IsEqualTo(1);
+        await Assert.That(triggerKeys.Count)
+                    .IsEqualTo(1);
 
         jobKeys = await _scheduler.GetJobKeys(GroupMatcher<JobKey>.GroupEquals("g1"));
         triggerKeys = await _scheduler.GetTriggerKeys(GroupMatcher<TriggerKey>.GroupEquals("g1"));
 
-        jobKeys.Count.Should().Be(2, "Number of jobs expected in 'g1' group was 2 ");
-        triggerKeys.Count.Should().Be(2, "Number of triggers expected in 'g1' group was 2 ");
+        await Assert.That(jobKeys.Count)
+                    .IsEqualTo(2);
+        await Assert.That(triggerKeys.Count)
+                    .IsEqualTo(2);
     }
 
-    [Fact]
+    [Test]
     public async Task TriggerStateTest()
     {
         await CreateJobsAndTriggers();
 
-        var s = await _scheduler.GetTriggerState(new TriggerKey("t2", "g1"));
-        s.Equals(TriggerState.Normal).Should().BeTrue("State of trigger t2 expected to be NORMAL ");
+        await Assert.That(await _scheduler.GetTriggerState(new TriggerKey("t2", "g1")))
+                    .IsEqualTo(TriggerState.Normal);
+
 
         await _scheduler.PauseTrigger(new TriggerKey("t2", "g1"));
-        s = await _scheduler.GetTriggerState(new TriggerKey("t2", "g1"));
-        s.Equals(TriggerState.Paused).Should().BeTrue("State of trigger t2 expected to be PAUSED ");
+
+        await Assert.That(await _scheduler.GetTriggerState(new TriggerKey("t2", "g1")))
+                    .IsEqualTo(TriggerState.Paused);
+
 
         await _scheduler.ResumeTrigger(new TriggerKey("t2", "g1"));
-        s = await _scheduler.GetTriggerState(new TriggerKey("t2", "g1"));
-        s.Equals(TriggerState.Normal).Should().BeTrue("State of trigger t2 expected to be NORMAL ");
+        await Assert.That(await _scheduler.GetTriggerState(new TriggerKey("t2", "g1")))
+                    .IsEqualTo(TriggerState.Normal);
 
         var pausedGroups = await _scheduler.GetPausedTriggerGroups();
-        pausedGroups.Should().BeEmpty("Size of paused trigger groups list expected to be 0 ");
+        await Assert.That(pausedGroups)
+                    .IsEmpty();
 
         await _scheduler.PauseTriggers(GroupMatcher<TriggerKey>.GroupEquals("g1"));
 
         // test that adding a trigger to a paused group causes the new trigger to be paused also... 
-        var job = JobBuilder.Create<SimpleJob>().WithIdentity("j4", "g1").Build();
+        var job = JobBuilder.Create<SimpleJob>()
+                            .WithIdentity("j4", "g1")
+                            .Build();
 
         var trigger = TriggerBuilder.Create()
-            .WithIdentity("t4", "g1")
-            .ForJob(job)
-            .StartNow()
-            .WithSimpleSchedule(x => x.RepeatForever().WithIntervalInSeconds(5))
-            .Build();
+                                    .WithIdentity("t4", "g1")
+                                    .ForJob(job)
+                                    .StartNow()
+                                    .WithSimpleSchedule(x => x.RepeatForever()
+                                                              .WithIntervalInSeconds(5)
+                                    )
+                                    .Build();
 
         await _scheduler.ScheduleJob(job, trigger);
 
         pausedGroups = await _scheduler.GetPausedTriggerGroups();
-        pausedGroups.Count.Should().Be(1, "Size of paused trigger groups list expected to be 1 ");
+        await Assert.That(pausedGroups.Count)
+                    .IsEqualTo(1);
 
-        s = await _scheduler.GetTriggerState(new TriggerKey("t2", "g1"));
-        s.Equals(TriggerState.Paused).Should().BeTrue("State of trigger t2 expected to be PAUSED ");
+        var s = await _scheduler.GetTriggerState(new TriggerKey("t2", "g1"));
+        await Assert.That(s)
+                    .IsEqualTo(TriggerState.Paused);
 
         s = await _scheduler.GetTriggerState(new TriggerKey("t4", "g1"));
-        s.Equals(TriggerState.Paused).Should().BeTrue("State of trigger t4 expected to be PAUSED ");
+        await Assert.That(s)
+                    .IsEqualTo(TriggerState.Paused);
 
         await _scheduler.ResumeTriggers(GroupMatcher<TriggerKey>.GroupEquals("g1"));
         s = await _scheduler.GetTriggerState(new TriggerKey("t2", "g1"));
-        s.Equals(TriggerState.Normal).Should().BeTrue("State of trigger t2 expected to be NORMAL ");
+
+        await Assert.That(s)
+                    .IsEqualTo(TriggerState.Normal);
+
         s = await _scheduler.GetTriggerState(new TriggerKey("t4", "g1"));
-        s.Equals(TriggerState.Normal).Should().BeTrue("State of trigger t4 expected to be NORMAL ");
+        await Assert.That(s)
+                    .IsEqualTo(TriggerState.Normal);
+
         pausedGroups = await _scheduler.GetPausedTriggerGroups();
-        pausedGroups.Should().BeEmpty("Size of paused trigger groups list expected to be 0 ");
+        await Assert.That(pausedGroups)
+                    .IsEmpty();
     }
 
-    [Fact]
+    [Test]
     public async Task SchedulingTest()
     {
         await CreateJobsAndTriggers();
 
-        (await _scheduler.UnscheduleJob(new TriggerKey("foasldfksajdflk"))).Should()
-            .BeFalse("Scheduler should have returned 'false' from attempt to unschedule non-existing trigger. ");
+        await Assert.That(await _scheduler.UnscheduleJob(new TriggerKey("foasldfksajdflk")))
+                    .IsFalse();
 
-        (await _scheduler.UnscheduleJob(new TriggerKey("t3", "g1"))).Should()
-            .BeTrue("Scheduler should have returned 'true' from attempt to unschedule existing trigger. ");
+
+        await Assert.That(await _scheduler.UnscheduleJob(new TriggerKey("t3", "g1")))
+                    .IsTrue();
+
 
         var jobKeys = await _scheduler.GetJobKeys(GroupMatcher<JobKey>.GroupEquals("g1"));
         var triggerKeys = await _scheduler.GetTriggerKeys(GroupMatcher<TriggerKey>.GroupEquals("g1"));
 
-        jobKeys.Count.Should().Be(1, "Number of jobs expected in 'g1' group was 1 ");
+        await Assert.That(jobKeys.Count)
+                    .IsEqualTo(1);
         // job should have been deleted also, because it is non-durable
-        triggerKeys.Count.Should().Be(1, "Number of triggers expected in 'g1' group was 1 ");
+        await Assert.That(triggerKeys.Count)
+                    .IsEqualTo(1);
 
-        (await _scheduler.UnscheduleJob(new TriggerKey("t1"))).Should()
-            .BeTrue("Scheduler should have returned 'true' from attempt to unschedule existing trigger. ");
+        await Assert.That(await _scheduler.UnscheduleJob(new TriggerKey("t1")))
+                    .IsTrue();
 
         jobKeys = await _scheduler.GetJobKeys(GroupMatcher<JobKey>.GroupEquals(JobKey.DefaultGroup));
         triggerKeys = await _scheduler.GetTriggerKeys(GroupMatcher<TriggerKey>.GroupEquals(TriggerKey.DefaultGroup));
 
-        jobKeys.Count.Should().Be(1, "Number of jobs expected in default group was 1 ");
+
+        await Assert.That(jobKeys.Count)
+                    .IsEqualTo(1);
+
         // job should have been left in place, because it is non-durable
-        triggerKeys.Should().BeEmpty("Number of triggers expected in default group was 0 ");
+        await Assert.That(triggerKeys)
+                    .IsEmpty();
     }
 
-    [Fact]
+    [Test]
     public async Task SimpleReschedulingTest()
     {
-        var job = JobBuilder.Create<SimpleJob>().WithIdentity("job1", "group1").Build();
+        var job = JobBuilder.Create<SimpleJob>()
+                            .WithIdentity("job1", "group1")
+                            .Build();
         var trigger1 = TriggerBuilder.Create()
-            .ForJob(job)
-            .WithIdentity("trigger1", "group1")
-            .StartAt(DateTimeOffset.Now.AddSeconds(30))
-            .Build();
+                                     .ForJob(job)
+                                     .WithIdentity("trigger1", "group1")
+                                     .StartAt(DateTimeOffset.Now.AddSeconds(30))
+                                     .Build();
 
         await _scheduler.ScheduleJob(job, trigger1);
 
@@ -199,16 +243,16 @@ public class MongoDbJobStoreTests : BaseStoreTests, IDisposable
         Assert.NotNull(job);
 
         var trigger2 = TriggerBuilder.Create()
-            .ForJob(job)
-            .WithIdentity("trigger1", "group1")
-            .StartAt(DateTimeOffset.Now.AddSeconds(60))
-            .Build();
+                                     .ForJob(job)
+                                     .WithIdentity("trigger1", "group1")
+                                     .StartAt(DateTimeOffset.Now.AddSeconds(60))
+                                     .Build();
         await _scheduler.RescheduleJob(trigger1.Key, trigger2);
         job = await _scheduler.GetJobDetail(job.Key);
         Assert.NotNull(job);
     }
 
-    [Fact]
+    [Test]
     public async Task TestAbilityToFireImmediatelyWhenStartedBefore()
     {
         var jobExecTimestamps = new List<DateTime>();
@@ -220,9 +264,13 @@ public class MongoDbJobStoreTests : BaseStoreTests, IDisposable
 
         Thread.Yield();
 
-        var job1 = JobBuilder.Create<SimpleJobWithSync>().WithIdentity("job1").Build();
+        var job1 = JobBuilder.Create<SimpleJobWithSync>()
+                             .WithIdentity("job1")
+                             .Build();
 
-        var trigger1 = TriggerBuilder.Create().ForJob(job1).Build();
+        var trigger1 = TriggerBuilder.Create()
+                                     .ForJob(job1)
+                                     .Build();
 
         var sTime = DateTime.UtcNow;
 
@@ -234,11 +282,12 @@ public class MongoDbJobStoreTests : BaseStoreTests, IDisposable
 
         var fTime = jobExecTimestamps[0];
 
-        (fTime - sTime < TimeSpan.FromMilliseconds(7000)).Should()
-            .BeTrue("Immediate trigger did not fire within a reasonable amount of time.");
+        // Immediate trigger did not fire within a reasonable amount of time.
+        await Assert.That(fTime - sTime < TimeSpan.FromMilliseconds(7000))
+                    .IsTrue();
     }
 
-    [Fact]
+    [Test]
     public async Task TestAbilityToFireImmediatelyWhenStartedBeforeWithTriggerJob()
     {
         var jobExecTimestamps = new List<DateTime>();
@@ -253,7 +302,10 @@ public class MongoDbJobStoreTests : BaseStoreTests, IDisposable
 
         Thread.Yield();
 
-        var job1 = JobBuilder.Create<SimpleJobWithSync>().WithIdentity("job1").StoreDurably().Build();
+        var job1 = JobBuilder.Create<SimpleJobWithSync>()
+                             .WithIdentity("job1")
+                             .StoreDurably()
+                             .Build();
         await _scheduler.AddJob(job1, false);
 
         var sTime = DateTime.UtcNow;
@@ -266,12 +318,13 @@ public class MongoDbJobStoreTests : BaseStoreTests, IDisposable
 
         var fTime = jobExecTimestamps[0];
 
-        (fTime - sTime < TimeSpan.FromMilliseconds(7000)).Should()
-            .BeTrue("Immediate trigger did not fire within a reasonable amount of time.");
+        // Immediate trigger did not fire within a reasonable amount of time
+        await Assert.That(fTime - sTime < TimeSpan.FromMilliseconds(7000))
+                    .IsTrue();
         // This is dangerously subjective!  but what else to do?
     }
 
-    [Fact]
+    [Test]
     public async Task TestAbilityToFireImmediatelyWhenStartedAfter()
     {
         var jobExecTimestamps = new List<DateTime>();
@@ -281,8 +334,12 @@ public class MongoDbJobStoreTests : BaseStoreTests, IDisposable
         _scheduler.Context.Put(Barrier, barrier);
         _scheduler.Context.Put(DateStamps, jobExecTimestamps);
 
-        var job1 = JobBuilder.Create<SimpleJobWithSync>().WithIdentity("job1").Build();
-        var trigger1 = TriggerBuilder.Create().ForJob(job1).Build();
+        var job1 = JobBuilder.Create<SimpleJobWithSync>()
+                             .WithIdentity("job1")
+                             .Build();
+        var trigger1 = TriggerBuilder.Create()
+                                     .ForJob(job1)
+                                     .Build();
 
         var sTime = DateTime.UtcNow;
 
@@ -295,25 +352,32 @@ public class MongoDbJobStoreTests : BaseStoreTests, IDisposable
 
         var fTime = jobExecTimestamps[0];
 
-        (fTime - sTime < TimeSpan.FromMilliseconds(7000)).Should()
-            .BeTrue("Immediate trigger did not fire within a reasonable amount of time.");
+        // Immediate trigger did not fire within a reasonable amount of time.
+        await Assert.That(fTime - sTime < TimeSpan.FromMilliseconds(7000))
+                    .IsTrue();
         // This is dangerously subjective!  but what else to do?
     }
 
-    [Fact]
+    [Test]
     public async Task TestScheduleMultipleTriggersForAJob()
     {
-        var job = JobBuilder.Create<SimpleJob>().WithIdentity("job1", "group1").Build();
+        var job = JobBuilder.Create<SimpleJob>()
+                            .WithIdentity("job1", "group1")
+                            .Build();
         var trigger1 = TriggerBuilder.Create()
-            .WithIdentity("trigger1", "group1")
-            .StartNow()
-            .WithSimpleSchedule(x => x.WithIntervalInSeconds(1).RepeatForever())
-            .Build();
+                                     .WithIdentity("trigger1", "group1")
+                                     .StartNow()
+                                     .WithSimpleSchedule(x => x.WithIntervalInSeconds(1)
+                                                               .RepeatForever()
+                                     )
+                                     .Build();
         var trigger2 = TriggerBuilder.Create()
-            .WithIdentity("trigger2", "group1")
-            .StartNow()
-            .WithSimpleSchedule(x => x.WithIntervalInSeconds(1).RepeatForever())
-            .Build();
+                                     .WithIdentity("trigger2", "group1")
+                                     .StartNow()
+                                     .WithSimpleSchedule(x => x.WithIntervalInSeconds(1)
+                                                               .RepeatForever()
+                                     )
+                                     .Build();
 
         var triggersForJob = new HashSet<ITrigger>
         {
@@ -324,47 +388,54 @@ public class MongoDbJobStoreTests : BaseStoreTests, IDisposable
         await _scheduler.ScheduleJob(job, triggersForJob, true);
 
         var triggersOfJob = await _scheduler.GetTriggersOfJob(job.Key);
-        triggersOfJob.Count.Should().Be(2);
-        triggersOfJob.Contains(trigger1).Should().BeTrue();
-        triggersOfJob.Contains(trigger2).Should().BeTrue();
+        await Assert.That(triggersOfJob.Count)
+                    .IsEqualTo(2);
+
+
+        await Assert.That(triggersOfJob)
+                    .Contains(trigger1);
+
+        await Assert.That(triggersOfJob)
+                    .Contains(trigger2);
 
         await _scheduler.Shutdown(false);
     }
 
-    [Fact]
+    [Test]
     public async Task TestDurableStorageFunctions()
     {
         // test basic storage functions of scheduler...
 
-        var job = JobBuilder.Create<SimpleJob>().WithIdentity("j1").StoreDurably().Build();
+        var job = JobBuilder.Create<SimpleJob>()
+                            .WithIdentity("j1")
+                            .StoreDurably()
+                            .Build();
 
-        (await _scheduler.CheckExists(new JobKey("j1"))).Should().BeFalse("Unexpected existence of job named 'j1'.");
+        await Assert.That(await _scheduler.CheckExists(new JobKey("j1")))
+                    .IsFalse();
 
         await _scheduler.AddJob(job, false);
 
-        (await _scheduler.CheckExists(new JobKey("j1"))).Should().BeTrue("Unexpected non-existence of job named 'j1'.");
+        await Assert.That(await _scheduler.CheckExists(new JobKey("j1")))
+                    .IsTrue();
 
-        var nonDurableJob = JobBuilder.Create<SimpleJob>().WithIdentity("j2").Build();
+        var nonDurableJob = JobBuilder.Create<SimpleJob>()
+                                      .WithIdentity("j2")
+                                      .Build();
 
-        try
-        {
-            await _scheduler.AddJob(nonDurableJob, false);
-            throw new Exception("Storage of non-durable job should not have succeeded.");
-        }
-        catch (Exception e)
-        {
-            var expectedException = e as SchedulerException;
-            expectedException.Should().NotBeNull();
-            (await _scheduler.CheckExists(new JobKey("j2"))).Should()
-                .BeFalse("Unexpected existence of job named 'j2'.");
-        }
+        await Assert.ThrowsAsync(async () => await _scheduler.AddJob(nonDurableJob, false))
+                    .WithExceptionType(typeof(SchedulerException));
+
+        await Assert.That(await _scheduler.CheckExists(new JobKey("j2")))
+                    .IsFalse();
 
         await _scheduler.AddJob(nonDurableJob, false, true);
 
-        (await _scheduler.CheckExists(new JobKey("j2"))).Should().BeTrue("Unexpected non-existence of job named 'j2'.");
+        await Assert.That(await _scheduler.CheckExists(new JobKey("j2")))
+                    .IsTrue();
     }
 
-    [Fact]
+    [Test]
     public async Task TestShutdownWithoutWaitIsUnclean()
     {
         var jobExecTimestamps = new List<DateTime>();
@@ -375,13 +446,22 @@ public class MongoDbJobStoreTests : BaseStoreTests, IDisposable
             _scheduler.Context.Put(DateStamps, jobExecTimestamps);
             await _scheduler.Start();
 
-            var jobName = Guid.NewGuid().ToString();
+            var jobName = Guid.NewGuid()
+                              .ToString();
             await _scheduler.AddJob(
-                JobBuilder.Create<SimpleJobWithSync>().WithIdentity(jobName).StoreDurably().Build(),
+                JobBuilder.Create<SimpleJobWithSync>()
+                          .WithIdentity(jobName)
+                          .StoreDurably()
+                          .Build(),
                 false
             );
 
-            await _scheduler.ScheduleJob(TriggerBuilder.Create().ForJob(jobName).StartNow().Build());
+            await _scheduler.ScheduleJob(
+                TriggerBuilder.Create()
+                              .ForJob(jobName)
+                              .StartNow()
+                              .Build()
+            );
             while ((await _scheduler.GetCurrentlyExecutingJobs()).Count == 0)
             {
                 await Task.Delay(50);
@@ -395,7 +475,7 @@ public class MongoDbJobStoreTests : BaseStoreTests, IDisposable
         barrier.SignalAndWait(TestTimeout);
     }
 
-    [Fact]
+    [Test]
     public async Task TestShutdownWithWaitIsClean()
     {
         var shutdown = false;
@@ -406,12 +486,21 @@ public class MongoDbJobStoreTests : BaseStoreTests, IDisposable
             _scheduler.Context.Put(Barrier, barrier);
             _scheduler.Context.Put(DateStamps, jobExecTimestamps);
             await _scheduler.Start();
-            var jobName = Guid.NewGuid().ToString();
+            var jobName = Guid.NewGuid()
+                              .ToString();
             await _scheduler.AddJob(
-                JobBuilder.Create<SimpleJobWithSync>().WithIdentity(jobName).StoreDurably().Build(),
+                JobBuilder.Create<SimpleJobWithSync>()
+                          .WithIdentity(jobName)
+                          .StoreDurably()
+                          .Build(),
                 false
             );
-            await _scheduler.ScheduleJob(TriggerBuilder.Create().ForJob(jobName).StartNow().Build());
+            await _scheduler.ScheduleJob(
+                TriggerBuilder.Create()
+                              .ForJob(jobName)
+                              .StartNow()
+                              .Build()
+            );
             while ((await _scheduler.GetCurrentlyExecutingJobs()).Count == 0)
             {
                 await Task.Delay(50);
@@ -422,8 +511,7 @@ public class MongoDbJobStoreTests : BaseStoreTests, IDisposable
             // Ignored
         }
 
-        var task = Task.Run(
-            async () =>
+        var task = Task.Run(async () =>
             {
                 try
                 {
@@ -439,12 +527,14 @@ public class MongoDbJobStoreTests : BaseStoreTests, IDisposable
 
         await Task.Delay(1000);
 
-        shutdown.Should().BeFalse();
+        await Assert.That(shutdown)
+                    .IsFalse();
+
         barrier.SignalAndWait(TestTimeout);
         await task;
     }
 
-    [Fact]
+    [Test]
     public async Task SmokeTest()
     {
         await SmokeTestPerformer.Test(_scheduler, true, true);
@@ -453,36 +543,49 @@ public class MongoDbJobStoreTests : BaseStoreTests, IDisposable
 
     private async Task CreateJobsAndTriggers()
     {
-        var job = JobBuilder.Create<SimpleJob>().WithIdentity("j1").StoreDurably().Build();
+        var job = JobBuilder.Create<SimpleJob>()
+                            .WithIdentity("j1")
+                            .StoreDurably()
+                            .Build();
 
         var trigger = TriggerBuilder.Create()
-            .WithIdentity("t1")
-            .ForJob(job)
-            .StartNow()
-            .WithSimpleSchedule(x => x.RepeatForever().WithIntervalInSeconds(5))
-            .Build();
+                                    .WithIdentity("t1")
+                                    .ForJob(job)
+                                    .StartNow()
+                                    .WithSimpleSchedule(x => x.RepeatForever()
+                                                              .WithIntervalInSeconds(5)
+                                    )
+                                    .Build();
 
         await _scheduler.ScheduleJob(job, trigger);
 
-        job = JobBuilder.Create<SimpleJob>().WithIdentity("j2", "g1").Build();
+        job = JobBuilder.Create<SimpleJob>()
+                        .WithIdentity("j2", "g1")
+                        .Build();
 
         trigger = TriggerBuilder.Create()
-            .WithIdentity("t2", "g1")
-            .ForJob(job)
-            .StartNow()
-            .WithSimpleSchedule(x => x.RepeatForever().WithIntervalInSeconds(5))
-            .Build();
+                                .WithIdentity("t2", "g1")
+                                .ForJob(job)
+                                .StartNow()
+                                .WithSimpleSchedule(x => x.RepeatForever()
+                                                          .WithIntervalInSeconds(5)
+                                )
+                                .Build();
 
         await _scheduler.ScheduleJob(job, trigger);
 
-        job = JobBuilder.Create<SimpleJob>().WithIdentity("j3", "g1").Build();
+        job = JobBuilder.Create<SimpleJob>()
+                        .WithIdentity("j3", "g1")
+                        .Build();
 
         trigger = TriggerBuilder.Create()
-            .WithIdentity("t3", "g1")
-            .ForJob(job)
-            .StartNow()
-            .WithSimpleSchedule(x => x.RepeatForever().WithIntervalInSeconds(5))
-            .Build();
+                                .WithIdentity("t3", "g1")
+                                .ForJob(job)
+                                .StartNow()
+                                .WithSimpleSchedule(x => x.RepeatForever()
+                                                          .WithIntervalInSeconds(5)
+                                )
+                                .Build();
 
         await _scheduler.ScheduleJob(job, trigger);
     }
