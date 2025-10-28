@@ -21,7 +21,7 @@ internal class LockRepository : BaseRepository<SchedulerLock>
 
     public override async Task EnsureIndex()
     {
-        // Create: (sched_name,lock_name) uniqueness
+        // PK_QRTZ_LOCKS
         await Collection.Indexes.CreateOneAsync(
             new CreateIndexModel<SchedulerLock>(
                 IndexBuilder.Ascending(x => x.InstanceName)

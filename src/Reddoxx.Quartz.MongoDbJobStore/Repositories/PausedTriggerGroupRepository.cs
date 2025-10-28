@@ -17,14 +17,11 @@ internal class PausedTriggerGroupRepository : BaseRepository<PausedTriggerGroup>
 
     public override async Task EnsureIndex()
     {
-        // PRIMARY KEY (sched_name,trigger_group)
+        // PK_QRTZ_PAUSED_TRIGGER_GRPS
         await Collection.Indexes.CreateOneAsync(
             new CreateIndexModel<PausedTriggerGroup>(
-                IndexBuilder.Combine(
-                    //
-                    IndexBuilder.Ascending(x => x.InstanceName),
-                    IndexBuilder.Ascending(x => x.Group)
-                ),
+                IndexBuilder.Ascending(x => x.InstanceName)
+                            .Ascending(x => x.Group),
                 new CreateIndexOptions
                 {
                     Unique = true,

@@ -31,7 +31,7 @@ internal class FiredTrigger
     /// <summary>
     /// job_name, job_group
     /// </summary>
-    public JobKey JobKey { get; }
+    public JobKey? JobKey { get; }
 
     /// <summary>
     /// instance_name

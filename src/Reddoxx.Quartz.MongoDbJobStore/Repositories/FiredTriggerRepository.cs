@@ -17,49 +17,39 @@ internal class FiredTriggerRepository : BaseRepository<FiredTrigger>
     {
         var indices = new List<CreateIndexModel<FiredTrigger>>
         {
-            // PRIMARY KEY (sched_name,entry_id)
+            // PK_QRTZ_FIRED_TRIGGERS
             new(
-                IndexBuilder.Combine(
-                    IndexBuilder.Ascending(x => x.InstanceName),
-                    IndexBuilder.Ascending(x => x.FiredInstanceId)
-                ),
+                IndexBuilder.Ascending(x => x.InstanceName)
+                            .Ascending(x => x.FiredInstanceId),
                 new CreateIndexOptions
                 {
                     Unique = true,
                 }
             ),
 
-            // create index idx_qrtz_ft_trig_name on qrtz_fired_triggers(trigger_name);
-            new(IndexBuilder.Ascending(x => x.TriggerKey.Name)),
-
-            // create index idx_qrtz_ft_trig_group on qrtz_fired_triggers(trigger_group);
-            new(IndexBuilder.Ascending(x => x.TriggerKey.Group)),
-
-            // create index idx_qrtz_ft_trig_nm_gp on qrtz_fired_triggers(sched_name,trigger_name,trigger_group);
+            // CREATE INDEX [IDX_QRTZ_FT_INST_JOB_REQ_RCVRY] ON [dbo].[QRTZ_FIRED_TRIGGERS](SCHED_NAME, INSTANCE_NAME, REQUESTS_RECOVERY);
             new(
-                IndexBuilder.Combine(
-                    IndexBuilder.Ascending(x => x.InstanceName),
-                    IndexBuilder.Ascending(x => x.TriggerKey.Name),
-                    IndexBuilder.Ascending(x => x.TriggerKey.Group)
-                )
-            ),
-
-            // create index idx_qrtz_ft_trig_inst_name on qrtz_fired_triggers(instance_name);
-            new(IndexBuilder.Ascending(x => x.InstanceId)),
-
-            // create index idx_qrtz_ft_job_name on qrtz_fired_triggers(job_name);
-            new(IndexBuilder.Ascending(x => x.JobKey.Name)),
-
-            // create index idx_qrtz_ft_job_group on qrtz_fired_triggers(job_group);
-            new(IndexBuilder.Ascending(x => x.JobKey.Group)),
-
-            // create index idx_qrtz_ft_job_req_recovery on qrtz_fired_triggers(requests_recovery);
-            new(
-                IndexBuilder.Ascending(x => x.RequestsRecovery),
+                IndexBuilder.Ascending(x => x.InstanceName)
+                            .Ascending(x => x.InstanceId)
+                            .Ascending(x => x.RequestsRecovery),
                 new CreateIndexOptions<FiredTrigger>
                 {
                     PartialFilterExpression = FilterBuilder.Eq(x => x.RequestsRecovery, true),
                 }
+            ),
+
+            // CREATE INDEX [IDX_QRTZ_FT_G_J] ON [dbo].[QRTZ_FIRED_TRIGGERS](SCHED_NAME, JOB_GROUP, JOB_NAME);
+            new(
+                IndexBuilder.Ascending(x => x.InstanceName)
+                            .Ascending(x => x.JobKey.Group)
+                            .Ascending(x => x.JobKey.Name)
+            ),
+
+            // CREATE INDEX [IDX_QRTZ_FT_G_T] ON [dbo].[QRTZ_FIRED_TRIGGERS](SCHED_NAME, TRIGGER_GROUP, TRIGGER_NAME);
+            new(
+                IndexBuilder.Ascending(x => x.InstanceName)
+                            .Ascending(x => x.TriggerKey.Group)
+                            .Ascending(x => x.TriggerKey.Name)
             ),
         };
 

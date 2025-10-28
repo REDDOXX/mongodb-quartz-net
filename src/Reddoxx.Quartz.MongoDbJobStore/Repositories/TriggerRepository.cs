@@ -19,6 +19,7 @@ internal class TriggerRepository : BaseRepository<Trigger>
     {
         var indices = new List<CreateIndexModel<Trigger>>
         {
+            // PK_QRTZ_TRIGGERS
             new(
                 IndexBuilder.Ascending(x => x.InstanceName)
                             .Ascending(x => x.Name)
@@ -29,15 +30,67 @@ internal class TriggerRepository : BaseRepository<Trigger>
                 }
             ),
 
-            // create index idx_qrtz_t_next_fire_time on qrtz_triggers(next_fire_time);
-            new(IndexBuilder.Ascending(x => x.NextFireTime)),
-
-            // create index idx_qrtz_t_state on qrtz_triggers(trigger_state);
-            new(IndexBuilder.Ascending(x => x.State)),
-
-            // create index idx_qrtz_t_nft_st on qrtz_triggers(next_fire_time,trigger_state);
+            // CREATE INDEX [IDX_QRTZ_T_G_J] ON [dbo].[QRTZ_TRIGGERS](SCHED_NAME, JOB_GROUP, JOB_NAME);
             new(
-                IndexBuilder.Ascending(x => x.NextFireTime)
+                IndexBuilder.Ascending(x => x.InstanceName)
+                            .Ascending(x => x.JobKey.Group)
+                            .Ascending(x => x.JobKey.Name)
+            ),
+
+            // CREATE INDEX [IDX_QRTZ_T_C] ON [dbo].[QRTZ_TRIGGERS](SCHED_NAME, CALENDAR_NAME);
+            new(
+                IndexBuilder.Ascending(x => x.InstanceName)
+                            .Ascending(x => x.CalendarName)
+            ),
+
+            // CREATE INDEX [IDX_QRTZ_T_N_G_STATE] ON [dbo].[QRTZ_TRIGGERS](SCHED_NAME, TRIGGER_GROUP, TRIGGER_STATE);
+            new(
+                IndexBuilder.Ascending(x => x.InstanceName)
+                            .Ascending(x => x.Group)
+                            .Ascending(x => x.State)
+            ),
+
+            // CREATE INDEX [IDX_QRTZ_T_STATE] ON [dbo].[QRTZ_TRIGGERS](SCHED_NAME, TRIGGER_STATE);
+            new(
+                IndexBuilder.Ascending(x => x.InstanceName)
+                            .Ascending(x => x.State)
+            ),
+
+            // CREATE INDEX [IDX_QRTZ_T_N_STATE] ON [dbo].[QRTZ_TRIGGERS](SCHED_NAME, TRIGGER_NAME, TRIGGER_GROUP, TRIGGER_STATE);
+            new(
+                IndexBuilder.Ascending(x => x.InstanceName)
+                            .Ascending(x => x.Name)
+                            .Ascending(x => x.Group)
+                            .Ascending(x => x.State)
+            ),
+
+            // CREATE INDEX [IDX_QRTZ_T_NEXT_FIRE_TIME] ON [dbo].[QRTZ_TRIGGERS](SCHED_NAME, NEXT_FIRE_TIME);
+            new(
+                IndexBuilder.Ascending(x => x.InstanceName)
+                            .Ascending(x => x.NextFireTime)
+            ),
+
+            // CREATE INDEX [IDX_QRTZ_T_NFT_ST] ON [dbo].[QRTZ_TRIGGERS](SCHED_NAME, TRIGGER_STATE, NEXT_FIRE_TIME);
+            new(
+                IndexBuilder.Ascending(x => x.InstanceName)
+                            .Ascending(x => x.State)
+                            .Ascending(x => x.NextFireTime)
+            ),
+
+            // CREATE INDEX [IDX_QRTZ_T_NFT_ST_MISFIRE] ON [dbo].[QRTZ_TRIGGERS](SCHED_NAME, MISFIRE_INSTR, NEXT_FIRE_TIME, TRIGGER_STATE);
+            new(
+                IndexBuilder.Ascending(x => x.InstanceName)
+                            .Ascending(x => x.MisfireInstruction)
+                            .Ascending(x => x.NextFireTime)
+                            .Ascending(x => x.State)
+            ),
+
+            // CREATE INDEX [IDX_QRTZ_T_NFT_ST_MISFIRE_GRP] ON [dbo].[QRTZ_TRIGGERS](SCHED_NAME, MISFIRE_INSTR, NEXT_FIRE_TIME, TRIGGER_GROUP, TRIGGER_STATE);
+            new(
+                IndexBuilder.Ascending(x => x.InstanceName)
+                            .Ascending(x => x.MisfireInstruction)
+                            .Ascending(x => x.NextFireTime)
+                            .Ascending(x => x.Group)
                             .Ascending(x => x.State)
             ),
         };

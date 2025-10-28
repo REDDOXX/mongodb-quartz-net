@@ -16,6 +16,7 @@ internal class CalendarRepository : BaseRepository<Calendar>
     public override async Task EnsureIndex()
     {
         await Collection.Indexes.CreateOneAsync(
+            // PK_QRTZ_CALENDARS
             new CreateIndexModel<Calendar>(
                 IndexBuilder.Ascending(x => x.InstanceName)
                             .Ascending(x => x.CalendarName),

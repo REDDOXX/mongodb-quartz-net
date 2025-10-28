@@ -17,7 +17,7 @@ internal class JobDetailRepository : BaseRepository<JobDetail>
 
     public override async Task EnsureIndex()
     {
-        // PRIMARY KEY (sched_name,job_name,job_group)
+        // PK_QRTZ_JOB_DETAILS
         await Collection.Indexes.CreateOneAsync(
             new CreateIndexModel<JobDetail>(
                 IndexBuilder.Ascending(x => x.InstanceName)

@@ -13,14 +13,11 @@ internal class SchedulerRepository : BaseRepository<Scheduler>
 
     public override async Task EnsureIndex()
     {
-        // PRIMARY KEY (sched_name,instance_name)
+        // PK_QRTZ_SCHEDULER_STATE
         await Collection.Indexes.CreateOneAsync(
             new CreateIndexModel<Scheduler>(
-                IndexBuilder.Combine(
-                    //
-                    IndexBuilder.Ascending(x => x.SchedulerName),
-                    IndexBuilder.Ascending(x => x.InstanceId)
-                ),
+                IndexBuilder.Ascending(x => x.SchedulerName)
+                            .Ascending(x => x.InstanceId),
                 new CreateIndexOptions
                 {
                     Unique = true,
