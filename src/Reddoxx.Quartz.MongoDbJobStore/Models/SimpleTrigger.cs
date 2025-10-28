@@ -23,7 +23,7 @@ internal class SimpleTrigger : Trigger
         string? description,
         DateTimeOffset? nextFireTime,
         DateTimeOffset? previousFireTime,
-        TriggerState state,
+        LocalTriggerState state,
         DateTimeOffset startTime,
         DateTimeOffset? endTime,
         string? calendarName,
@@ -58,7 +58,7 @@ internal class SimpleTrigger : Trigger
         TimesTriggered = timesTriggered;
     }
 
-    public SimpleTrigger(ISimpleTrigger trigger, TriggerState state, string instanceName)
+    public SimpleTrigger(ISimpleTrigger trigger, LocalTriggerState state, string instanceName)
         : base(trigger, state, instanceName)
     {
         RepeatCount = trigger.RepeatCount;

@@ -37,15 +37,7 @@ internal class SchedulerRepository : BaseRepository<Scheduler>
         // AddCommandParameter(cmd, "schedulerName", schedName);
         // AddCommandParameter(cmd, "instanceName", instanceName);
 
-        await Collection.InsertOneAsync(
-            new Scheduler
-            {
-                SchedulerName = InstanceName,
-                InstanceId = instanceId,
-                LastCheckIn = checkInTime.UtcDateTime,
-                CheckInInterval = interval,
-            }
-        );
+        await Collection.InsertOneAsync(new Scheduler(InstanceName, instanceId, checkInTime, interval));
     }
 
     /// <summary>

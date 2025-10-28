@@ -24,7 +24,7 @@ internal class CronTrigger : Trigger
         string? description,
         DateTimeOffset? nextFireTime,
         DateTimeOffset? previousFireTime,
-        TriggerState state,
+        LocalTriggerState state,
         DateTimeOffset startTime,
         DateTimeOffset? endTime,
         string? calendarName,
@@ -57,7 +57,7 @@ internal class CronTrigger : Trigger
         TimeZone = timeZone;
     }
 
-    public CronTrigger(ICronTrigger trigger, TriggerState state, string instanceName)
+    public CronTrigger(ICronTrigger trigger, LocalTriggerState state, string instanceName)
         : base(trigger, state, instanceName)
     {
         CronExpression = trigger.CronExpressionString;

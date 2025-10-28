@@ -9,7 +9,7 @@ namespace Reddoxx.Quartz.MongoDbJobStore.Models;
 /// <summary>
 /// Database trigger state
 /// </summary>
-internal enum TriggerState
+internal enum LocalTriggerState
 {
     Waiting,
     Acquired,
@@ -66,7 +66,7 @@ internal abstract class Trigger
     /// <summary>
     /// trigger_state
     /// </summary>
-    public TriggerState State { get; set; }
+    public LocalTriggerState State { get; set; }
 
     /// <summary>
     /// start_time
@@ -113,7 +113,7 @@ internal abstract class Trigger
         string? description,
         DateTimeOffset? nextFireTime,
         DateTimeOffset? previousFireTime,
-        TriggerState state,
+        LocalTriggerState state,
         DateTimeOffset startTime,
         DateTimeOffset? endTime,
         string? calendarName,
@@ -140,7 +140,7 @@ internal abstract class Trigger
         JobKey = jobKey;
     }
 
-    protected Trigger(ITrigger trigger, TriggerState state, string instanceName)
+    protected Trigger(ITrigger trigger, LocalTriggerState state, string instanceName)
     {
         Id = ObjectId.GenerateNewId();
         InstanceName = instanceName;

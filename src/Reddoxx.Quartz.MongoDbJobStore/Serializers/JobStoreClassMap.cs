@@ -6,8 +6,6 @@ using Quartz;
 
 using Reddoxx.Quartz.MongoDbJobStore.Models;
 
-using TriggerState = Reddoxx.Quartz.MongoDbJobStore.Models.TriggerState;
-
 namespace Reddoxx.Quartz.MongoDbJobStore.Serializers;
 
 internal static class JobStoreClassMap
@@ -93,10 +91,6 @@ internal static class JobStoreClassMap
             }
         );
 
-
-        RegisterTriggerClassMaps();
-
-
         BsonClassMap.RegisterClassMap<FiredTrigger>(map =>
             {
                 map.AutoMap();
@@ -109,7 +103,7 @@ internal static class JobStoreClassMap
                    .SetSerializer(new DateTimeOffsetSerializer(BsonType.DateTime));
 
                 map.MapProperty(x => x.State)
-                   .SetSerializer(new EnumSerializer<TriggerState>(BsonType.String));
+                   .SetSerializer(new EnumSerializer<LocalTriggerState>(BsonType.String));
 
 
                 map.MapCreator(x => new FiredTrigger(
@@ -129,6 +123,48 @@ internal static class JobStoreClassMap
                 );
             }
         );
+
+        BsonClassMap.RegisterClassMap<PausedTriggerGroup>(map =>
+            {
+                map.AutoMap();
+
+                map.MapIdProperty(x => x.Id);
+
+                map.MapCreator(x => new PausedTriggerGroup(x.Id, x.InstanceName, x.Group));
+            }
+        );
+
+        BsonClassMap.RegisterClassMap<Scheduler>(map =>
+            {
+                map.AutoMap();
+
+                map.MapProperty(x => x.LastCheckIn)
+                   .SetSerializer(new DateTimeOffsetSerializer(BsonType.DateTime));
+
+                map.MapCreator(x => new Scheduler(
+                        //
+                        x.Id,
+                        x.SchedulerName,
+                        x.InstanceId,
+                        x.LastCheckIn,
+                        x.CheckInInterval
+                    )
+                );
+            }
+        );
+
+        BsonClassMap.RegisterClassMap<SchedulerLock>(map =>
+            {
+                map.AutoMap();
+
+                map.MapProperty(x => x.LockType)
+                   .SetSerializer(new EnumSerializer<QuartzLockType>(BsonType.String));
+
+                map.MapCreator(x => new SchedulerLock(x.Id, x.InstanceName, x.LockType, x.LockKey));
+            }
+        );
+
+        RegisterTriggerClassMaps();
     }
 
     private static void RegisterTriggerClassMaps()
@@ -151,7 +187,7 @@ internal static class JobStoreClassMap
                    .SetSerializer(new DateTimeOffsetSerializer(BsonType.DateTime));
 
                 map.MapProperty(x => x.State)
-                   .SetSerializer(new EnumSerializer<TriggerState>(BsonType.String));
+                   .SetSerializer(new EnumSerializer<LocalTriggerState>(BsonType.String));
 
                 map.MapProperty(x => x.StartTime)
                    .SetSerializer(new DateTimeOffsetSerializer(BsonType.DateTime));

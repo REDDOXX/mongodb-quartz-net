@@ -6,7 +6,7 @@ namespace Reddoxx.Quartz.MongoDbJobStore;
 
 internal static class TriggerFactory
 {
-    public static Trigger CreateTrigger(ITrigger trigger, Models.TriggerState state, string instanceName)
+    public static Trigger CreateTrigger(ITrigger trigger, LocalTriggerState state, string instanceName)
     {
         return trigger switch
         {

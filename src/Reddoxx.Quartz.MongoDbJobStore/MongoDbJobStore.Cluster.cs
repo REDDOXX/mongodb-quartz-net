@@ -19,9 +19,9 @@ public partial class MongoDbJobStore
 
         try
         {
-            await _pendingLocksSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+            await _pendingLocksSemaphore.WaitAsync(cancellationToken);
 
-            await using var context = await _lockingManager.CreateLockContext(cancellationToken).ConfigureAwait(false);
+            await using var context = await _lockingManager.CreateLockContext(cancellationToken);
 
             try
             {
@@ -32,41 +32,39 @@ public partial class MongoDbJobStore
                 IReadOnlyList<Scheduler>? failedRecords = null;
                 if (!_firstCheckIn)
                 {
-                    failedRecords = await ClusterCheckIn().ConfigureAwait(false);
+                    failedRecords = await ClusterCheckIn();
                 }
 
                 if (_firstCheckIn || failedRecords != null && failedRecords.Count > 0)
                 {
-                    await context.TryAcquireLock(InstanceName, QuartzLockType.StateAccess, cancellationToken)
-                        .ConfigureAwait(false);
+                    await context.TryAcquireLock(InstanceName, QuartzLockType.StateAccess, cancellationToken);
 
 
                     // Now that we own the lock, make sure we still have work to do.
                     // The first time through, we also need to make sure we update/create our state record
                     if (_firstCheckIn)
                     {
-                        failedRecords = await ClusterCheckIn().ConfigureAwait(false);
+                        failedRecords = await ClusterCheckIn();
                     }
                     else
                     {
-                        failedRecords = await FindFailedInstances().ConfigureAwait(false);
+                        failedRecords = await FindFailedInstances();
                     }
 
                     if (failedRecords.Count > 0)
                     {
-                        await context.TryAcquireLock(InstanceName, QuartzLockType.TriggerAccess, cancellationToken)
-                            .ConfigureAwait(false);
+                        await context.TryAcquireLock(InstanceName, QuartzLockType.TriggerAccess, cancellationToken);
 
-                        await ClusterRecover(failedRecords).ConfigureAwait(false);
+                        await ClusterRecover(failedRecords);
                         recovered = true;
                     }
                 }
 
-                await context.CommitTransaction(cancellationToken).ConfigureAwait(false);
+                await context.CommitTransaction(cancellationToken);
             }
             catch (Exception ex)
             {
-                await context.RollbackTransaction(cancellationToken).ConfigureAwait(false);
+                await context.RollbackTransaction(cancellationToken);
 
                 _logger.LogWarning(ex, "Failed to do cluster check-in {Message}", ex.Message);
             }
@@ -91,7 +89,7 @@ public partial class MongoDbJobStore
         var failedInstances = new List<Scheduler>();
         var foundThisScheduler = false;
 
-        var schedulers = await _schedulerRepository.SelectSchedulerStateRecords(null).ConfigureAwait(false);
+        var schedulers = await _schedulerRepository.SelectSchedulerStateRecords(null);
 
         foreach (var scheduler in schedulers)
         {
@@ -117,7 +115,7 @@ public partial class MongoDbJobStore
         // The first time through, also check for orphaned fired triggers.
         if (_firstCheckIn)
         {
-            var orphanedInstances = await FindOrphanedFailedInstances(schedulers).ConfigureAwait(false);
+            var orphanedInstances = await FindOrphanedFailedInstances(schedulers);
             failedInstances.AddRange(orphanedInstances);
         }
 
@@ -145,7 +143,7 @@ public partial class MongoDbJobStore
     {
         var orphanedInstances = new List<Scheduler>();
 
-        var ids = await _firedTriggerRepository.SelectFiredTriggerInstanceIds().ConfigureAwait(false);
+        var ids = await _firedTriggerRepository.SelectFiredTriggerInstanceIds();
 
         var allFiredTriggerInstanceIds = new HashSet<string>(ids);
         if (allFiredTriggerInstanceIds.Count > 0)
@@ -177,14 +175,14 @@ public partial class MongoDbJobStore
         var ts = scheduler.CheckInInterval > passed ? scheduler.CheckInInterval : passed; // Max
 
         return scheduler.LastCheckIn
-            //
-            .Add(ts)
-            .Add(ClusterCheckinMisfireThreshold);
+                        //
+                        .Add(ts)
+                        .Add(ClusterCheckinMisfireThreshold);
     }
 
     private async Task<IReadOnlyList<Scheduler>> ClusterCheckIn()
     {
-        var failedInstances = await FindFailedInstances().ConfigureAwait(false);
+        var failedInstances = await FindFailedInstances();
 
         try
         {
@@ -193,10 +191,9 @@ public partial class MongoDbJobStore
             // check in...
             LastCheckin = SystemTime.UtcNow();
 
-            if (await _schedulerRepository.UpdateState(InstanceId, LastCheckin).ConfigureAwait(false) == 0)
+            if (await _schedulerRepository.UpdateState(InstanceId, LastCheckin) == 0)
             {
-                await _schedulerRepository.AddScheduler(InstanceId, LastCheckin, ClusterCheckinInterval)
-                    .ConfigureAwait(false);
+                await _schedulerRepository.AddScheduler(InstanceId, LastCheckin, ClusterCheckinInterval);
             }
         }
         catch (Exception e)
@@ -214,7 +211,8 @@ public partial class MongoDbJobStore
             return;
         }
 
-        var recoverIds = SystemTime.UtcNow().Ticks;
+        var recoverIds = SystemTime.UtcNow()
+                                   .Ticks;
 
         LogWarnIfNonZero(
             failedInstances.Count,
@@ -232,8 +230,7 @@ public partial class MongoDbJobStore
                 );
 
 
-                var firedTriggerRecs = await _firedTriggerRepository.SelectInstancesFiredTriggerRecords(rec.InstanceId)
-                    .ConfigureAwait(false);
+                var firedTriggerRecs = await _firedTriggerRepository.SelectInstancesFiredTriggerRecords(rec.InstanceId);
 
                 var acquiredCount = 0;
                 var recoveredCount = 0;
@@ -251,44 +248,41 @@ public partial class MongoDbJobStore
                     switch (ftRec.State)
                     {
                         // release blocked triggers..
-                        case Models.TriggerState.Blocked:
+                        case LocalTriggerState.Blocked:
                         {
                             await _triggerRepository.UpdateTriggersStates(
-                                    jKey,
-                                    Models.TriggerState.Waiting,
-                                    Models.TriggerState.Blocked
-                                )
-                                .ConfigureAwait(false);
+                                jKey,
+                                LocalTriggerState.Waiting,
+                                LocalTriggerState.Blocked
+                            );
                             break;
                         }
-                        case Models.TriggerState.PausedBlocked:
+                        case LocalTriggerState.PausedBlocked:
                         {
                             await _triggerRepository.UpdateTriggersStates(
-                                    jKey,
-                                    Models.TriggerState.Paused,
-                                    Models.TriggerState.PausedBlocked
-                                )
-                                .ConfigureAwait(false);
+                                jKey,
+                                LocalTriggerState.Paused,
+                                LocalTriggerState.PausedBlocked
+                            );
                             break;
                         }
                     }
 
                     // release acquired triggers..
-                    if (ftRec.State == Models.TriggerState.Acquired)
+                    if (ftRec.State == LocalTriggerState.Acquired)
                     {
                         await _triggerRepository.UpdateTriggerState(
-                                tKey,
-                                Models.TriggerState.Waiting,
-                                Models.TriggerState.Acquired
-                            )
-                            .ConfigureAwait(false);
+                            tKey,
+                            LocalTriggerState.Waiting,
+                            LocalTriggerState.Acquired
+                        );
                         acquiredCount++;
                     }
                     else if (ftRec.RequestsRecovery)
                     {
                         // handle jobs marked for recovery that were not fully
                         // executed...
-                        if (await _jobDetailRepository.JobExists(jKey).ConfigureAwait(false))
+                        if (await _jobDetailRepository.JobExists(jKey))
                         {
                             var recoveryTrig = new SimpleTriggerImpl(
                                 $"recover_{rec.InstanceId}_{Convert.ToString(recoverIds++, CultureInfo.InvariantCulture)}",
@@ -302,7 +296,7 @@ public partial class MongoDbJobStore
                                 Priority = ftRec.Priority,
                             };
 
-                            var jd = await _triggerRepository.GetTriggerJobDataMap(tKey).ConfigureAwait(false);
+                            var jd = await _triggerRepository.GetTriggerJobDataMap(tKey);
                             if (jd != null)
                             {
                                 jd.Put(SchedulerConstants.FailedJobOriginalTriggerName, tKey.Name);
@@ -315,14 +309,13 @@ public partial class MongoDbJobStore
 
                                 recoveryTrig.ComputeFirstFireTimeUtc(null);
                                 await StoreTriggerInternal(
-                                        recoveryTrig,
-                                        null,
-                                        false,
-                                        Models.TriggerState.Waiting,
-                                        false,
-                                        true
-                                    )
-                                    .ConfigureAwait(false);
+                                    recoveryTrig,
+                                    null,
+                                    false,
+                                    LocalTriggerState.Waiting,
+                                    false,
+                                    true
+                                );
                                 recoveredCount++;
                             }
                             else
@@ -349,39 +342,36 @@ public partial class MongoDbJobStore
                     if (ftRec.ConcurrentExecutionDisallowed)
                     {
                         await _triggerRepository.UpdateTriggersStates(
-                                jKey,
-                                Models.TriggerState.Waiting,
-                                Models.TriggerState.Blocked
-                            )
-                            .ConfigureAwait(false);
+                            jKey,
+                            LocalTriggerState.Waiting,
+                            LocalTriggerState.Blocked
+                        );
                         await _triggerRepository.UpdateTriggersStates(
-                                jKey,
-                                Models.TriggerState.Paused,
-                                Models.TriggerState.PausedBlocked
-                            )
-                            .ConfigureAwait(false);
+                            jKey,
+                            LocalTriggerState.Paused,
+                            LocalTriggerState.PausedBlocked
+                        );
                     }
                 }
 
-                await _firedTriggerRepository.DeleteFiredTriggersByInstanceId(rec.InstanceId).ConfigureAwait(false);
+                await _firedTriggerRepository.DeleteFiredTriggersByInstanceId(rec.InstanceId);
 
                 // Check if any of the fired triggers we just deleted were the last fired trigger
                 // records of a COMPLETE trigger.
                 var completeCount = 0;
                 foreach (var triggerKey in triggerKeys)
                 {
-                    var triggerState = await _triggerRepository.GetTriggerState(triggerKey).ConfigureAwait(false);
-                    if (triggerState == Models.TriggerState.Complete)
+                    var triggerState = await _triggerRepository.GetTriggerState(triggerKey);
+                    if (triggerState == LocalTriggerState.Complete)
                     {
                         var firedTriggers = await _firedTriggerRepository.SelectFiredTriggerRecords(
-                                triggerKey.Name,
-                                triggerKey.Group
-                            )
-                            .ConfigureAwait(false);
+                            triggerKey.Name,
+                            triggerKey.Group
+                        );
 
                         if (firedTriggers.Count == 0)
                         {
-                            if (await RemoveTriggerInternal(triggerKey).ConfigureAwait(false))
+                            if (await RemoveTriggerInternal(triggerKey))
                             {
                                 completeCount++;
                             }
@@ -412,7 +402,7 @@ public partial class MongoDbJobStore
 
                 if (!string.Equals(rec.InstanceId, InstanceId))
                 {
-                    await _schedulerRepository.DeleteScheduler(rec.InstanceId).ConfigureAwait(false);
+                    await _schedulerRepository.DeleteScheduler(rec.InstanceId);
                 }
             }
         }

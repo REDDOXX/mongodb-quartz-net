@@ -29,7 +29,7 @@ internal class CalendarIntervalTrigger : Trigger
         string? description,
         DateTimeOffset? nextFireTime,
         DateTimeOffset? previousFireTime,
-        TriggerState state,
+        LocalTriggerState state,
         DateTimeOffset startTime,
         DateTimeOffset? endTime,
         string? calendarName,
@@ -70,7 +70,7 @@ internal class CalendarIntervalTrigger : Trigger
         SkipDayIfHourDoesNotExist = skipDayIfHourDoesNotExist;
     }
 
-    public CalendarIntervalTrigger(ICalendarIntervalTrigger trigger, TriggerState state, string instanceName)
+    public CalendarIntervalTrigger(ICalendarIntervalTrigger trigger, LocalTriggerState state, string instanceName)
         : base(trigger, state, instanceName)
     {
         RepeatIntervalUnit = trigger.RepeatIntervalUnit;

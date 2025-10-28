@@ -1,7 +1,6 @@
 using System.Globalization;
 
 using MongoDB.Bson;
-using MongoDB.Bson.Serialization.Attributes;
 
 using Quartz;
 using Quartz.Impl.Triggers;
@@ -57,7 +56,7 @@ internal class FiredTrigger
     /// <summary>
     /// state
     /// </summary>
-    public TriggerState State { get; }
+    public LocalTriggerState State { get; }
 
     /// <summary>
     /// is_nonconcurrent
@@ -80,7 +79,7 @@ internal class FiredTrigger
         DateTimeOffset fired,
         DateTimeOffset? scheduled,
         int priority,
-        TriggerState state,
+        LocalTriggerState state,
         bool concurrentExecutionDisallowed,
         bool requestsRecovery
     )
@@ -104,7 +103,7 @@ internal class FiredTrigger
         Trigger trigger,
         JobDetail? jobDetail,
         string instanceId,
-        TriggerState state
+        LocalTriggerState state
     )
     {
         Id = ObjectId.GenerateNewId();

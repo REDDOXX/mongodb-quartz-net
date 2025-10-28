@@ -6,8 +6,6 @@ using Quartz.Spi;
 
 using Reddoxx.Quartz.MongoDbJobStore.Models;
 
-using TriggerState = Quartz.TriggerState;
-
 namespace Reddoxx.Quartz.MongoDbJobStore;
 
 public partial class MongoDbJobStore
@@ -20,7 +18,7 @@ public partial class MongoDbJobStore
     {
         return ExecuteInTx(
             QuartzLockType.TriggerAccess,
-            () => StoreTriggerInternal(newTrigger, null, replaceExisting, Models.TriggerState.Waiting, false, false),
+            () => StoreTriggerInternal(newTrigger, null, replaceExisting, LocalTriggerState.Waiting, false, false),
             cancellationToken
         );
     }
@@ -122,12 +120,12 @@ public partial class MongoDbJobStore
 
         return trigger.State switch
         {
-            Models.TriggerState.Deleted => TriggerState.None,
-            Models.TriggerState.Complete => TriggerState.Complete,
-            Models.TriggerState.Paused => TriggerState.Paused,
-            Models.TriggerState.PausedBlocked => TriggerState.Paused,
-            Models.TriggerState.Error => TriggerState.Error,
-            Models.TriggerState.Blocked => TriggerState.Blocked,
+            LocalTriggerState.Deleted => TriggerState.None,
+            LocalTriggerState.Complete => TriggerState.Complete,
+            LocalTriggerState.Paused => TriggerState.Paused,
+            LocalTriggerState.PausedBlocked => TriggerState.Paused,
+            LocalTriggerState.Error => TriggerState.Error,
+            LocalTriggerState.Blocked => TriggerState.Blocked,
             _ => TriggerState.Normal,
         };
     }
@@ -140,14 +138,14 @@ public partial class MongoDbJobStore
                 QuartzLockType.TriggerAccess,
                 async () =>
                 {
-                    var newState = Models.TriggerState.Waiting;
+                    var newState = LocalTriggerState.Waiting;
 
                     if (await _pausedTriggerGroupRepository.IsTriggerGroupPaused(triggerKey.Group))
                     {
-                        newState = Models.TriggerState.Paused;
+                        newState = LocalTriggerState.Paused;
                     }
 
-                    await _triggerRepository.UpdateTriggerState(triggerKey, newState, Models.TriggerState.Error);
+                    await _triggerRepository.UpdateTriggerState(triggerKey, newState, LocalTriggerState.Error);
 
                     _logger.LogInformation(
                         "Trigger {TriggerKey} reset from ERROR state to: {NewState}",
@@ -252,13 +250,13 @@ public partial class MongoDbJobStore
                 {
                     await _triggerRepository.UpdateTriggerState(
                         trigger.Key,
-                        Models.TriggerState.Waiting,
-                        Models.TriggerState.Acquired
+                        LocalTriggerState.Waiting,
+                        LocalTriggerState.Acquired
                     );
                     await _triggerRepository.UpdateTriggerState(
                         trigger.Key,
-                        Models.TriggerState.Waiting,
-                        Models.TriggerState.Blocked
+                        LocalTriggerState.Waiting,
+                        LocalTriggerState.Blocked
                     );
 
                     await _firedTriggerRepository.DeleteFiredTrigger(trigger.FireInstanceId);
@@ -345,18 +343,18 @@ public partial class MongoDbJobStore
     {
         var trigger = await _triggerRepository.GetTrigger(triggerKey);
 
-        var state = trigger?.State ?? Models.TriggerState.Deleted;
+        var state = trigger?.State ?? LocalTriggerState.Deleted;
         switch (state)
         {
-            case Models.TriggerState.Waiting:
-            case Models.TriggerState.Acquired:
+            case LocalTriggerState.Waiting:
+            case LocalTriggerState.Acquired:
             {
-                await _triggerRepository.UpdateTriggerState(triggerKey, Models.TriggerState.Paused);
+                await _triggerRepository.UpdateTriggerState(triggerKey, LocalTriggerState.Paused);
                 break;
             }
-            case Models.TriggerState.Blocked:
+            case LocalTriggerState.Blocked:
             {
-                await _triggerRepository.UpdateTriggerState(triggerKey, Models.TriggerState.PausedBlocked);
+                await _triggerRepository.UpdateTriggerState(triggerKey, LocalTriggerState.PausedBlocked);
                 break;
             }
         }
@@ -401,8 +399,8 @@ public partial class MongoDbJobStore
             return;
         }
 
-        var blocked = trigger.State == Models.TriggerState.PausedBlocked;
-        var newState = await CheckBlockedState(trigger.JobKey, Models.TriggerState.Waiting);
+        var blocked = trigger.State == LocalTriggerState.PausedBlocked;
+        var newState = await CheckBlockedState(trigger.JobKey, LocalTriggerState.Waiting);
         var misfired = false;
 
         if (_schedulerRunning && trigger.NextFireTime < SystemTime.UtcNow())
@@ -412,7 +410,7 @@ public partial class MongoDbJobStore
 
         if (!misfired)
         {
-            var oldState = blocked ? Models.TriggerState.PausedBlocked : Models.TriggerState.Paused;
+            var oldState = blocked ? LocalTriggerState.PausedBlocked : LocalTriggerState.Paused;
 
             await _triggerRepository.UpdateTriggerState(triggerKey, newState, oldState);
         }
@@ -438,7 +436,7 @@ public partial class MongoDbJobStore
     {
         // Make sure trigger wasn't deleted, paused, or completed...
         var state = await _triggerRepository.GetTriggerState(trigger.Key);
-        if (state != Models.TriggerState.Acquired)
+        if (state != LocalTriggerState.Acquired)
         {
             return null;
         }
@@ -456,7 +454,7 @@ public partial class MongoDbJobStore
         {
             _logger.LogError(ex, "Error retrieving job, setting trigger state to ERROR.");
 
-            await _triggerRepository.UpdateTriggerState(trigger.Key, Models.TriggerState.Error);
+            await _triggerRepository.UpdateTriggerState(trigger.Key, LocalTriggerState.Error);
             throw;
         }
 
@@ -472,10 +470,10 @@ public partial class MongoDbJobStore
 
         var firedTrigger = new FiredTrigger(
             trigger.FireInstanceId,
-            TriggerFactory.CreateTrigger(trigger, Models.TriggerState.Executing, InstanceName),
+            TriggerFactory.CreateTrigger(trigger, LocalTriggerState.Executing, InstanceName),
             job,
             InstanceId,
-            Models.TriggerState.Executing
+            LocalTriggerState.Executing
         );
         await _firedTriggerRepository.UpdateFiredTrigger(firedTrigger);
 
@@ -484,34 +482,34 @@ public partial class MongoDbJobStore
         // call triggered - to update the trigger's next-fire-time state...
         trigger.Triggered(calendar);
 
-        state = Models.TriggerState.Waiting;
+        state = LocalTriggerState.Waiting;
         var force = true;
 
         if (job.ConcurrentExecutionDisallowed)
         {
-            state = Models.TriggerState.Blocked;
+            state = LocalTriggerState.Blocked;
             force = false;
             await _triggerRepository.UpdateTriggersStates(
                 trigger.JobKey,
-                Models.TriggerState.Blocked,
-                Models.TriggerState.Waiting
+                LocalTriggerState.Blocked,
+                LocalTriggerState.Waiting
             );
             await _triggerRepository.UpdateTriggersStates(
                 trigger.JobKey,
-                Models.TriggerState.Blocked,
-                Models.TriggerState.Acquired
+                LocalTriggerState.Blocked,
+                LocalTriggerState.Acquired
             );
             await _triggerRepository.UpdateTriggersStates(
                 trigger.JobKey,
-                Models.TriggerState.PausedBlocked,
-                Models.TriggerState.Paused
+                LocalTriggerState.PausedBlocked,
+                LocalTriggerState.Paused
             );
         }
 
         if (!trigger.GetNextFireTimeUtc()
                     .HasValue)
         {
-            state = Models.TriggerState.Complete;
+            state = LocalTriggerState.Complete;
             force = true;
         }
 
@@ -537,7 +535,7 @@ public partial class MongoDbJobStore
         IOperableTrigger newTrigger,
         IJobDetail? job,
         bool replaceExisting,
-        Models.TriggerState state,
+        LocalTriggerState state,
         bool forceState,
         bool recovering
     )
@@ -562,9 +560,9 @@ public partial class MongoDbJobStore
                 }
             }
 
-            if (shouldBePaused && (state == Models.TriggerState.Waiting || state == Models.TriggerState.Acquired))
+            if (shouldBePaused && state is LocalTriggerState.Waiting or LocalTriggerState.Acquired)
             {
-                state = Models.TriggerState.Paused;
+                state = LocalTriggerState.Paused;
             }
         }
 
@@ -602,7 +600,7 @@ public partial class MongoDbJobStore
 
     private async Task<bool> UpdateMisfiredTrigger(
         TriggerKey triggerKey,
-        Models.TriggerState newStateIfNotComplete,
+        LocalTriggerState newStateIfNotComplete,
         bool forceState
     )
     {
@@ -632,7 +630,7 @@ public partial class MongoDbJobStore
     private async Task DoUpdateOfMisfiredTrigger(
         Trigger trigger,
         bool forceState,
-        Models.TriggerState newStateIfNotComplete,
+        LocalTriggerState newStateIfNotComplete,
         bool recovering
     )
     {
@@ -650,14 +648,7 @@ public partial class MongoDbJobStore
         if (!operableTrigger.GetNextFireTimeUtc()
                             .HasValue)
         {
-            await StoreTriggerInternal(
-                operableTrigger,
-                null,
-                true,
-                Models.TriggerState.Complete,
-                forceState,
-                recovering
-            );
+            await StoreTriggerInternal(operableTrigger, null, true, LocalTriggerState.Complete, forceState, recovering);
             await _schedulerSignaler.NotifySchedulerListenersFinalized(operableTrigger);
         }
         else
@@ -722,7 +713,7 @@ public partial class MongoDbJobStore
                 }
                 catch (Exception)
                 {
-                    await _triggerRepository.UpdateTriggerState(triggerKey, Models.TriggerState.Error);
+                    await _triggerRepository.UpdateTriggerState(triggerKey, LocalTriggerState.Error);
                     continue;
                 }
 
@@ -763,8 +754,8 @@ public partial class MongoDbJobStore
                 // If our trigger was no longer in the expected state, try a new one.
                 var result = await _triggerRepository.UpdateTriggerState(
                     triggerKey,
-                    Models.TriggerState.Acquired,
-                    Models.TriggerState.Waiting
+                    LocalTriggerState.Acquired,
+                    LocalTriggerState.Waiting
                 );
 
                 if (result <= 0)
@@ -781,7 +772,7 @@ public partial class MongoDbJobStore
                     nextTrigger,
                     null,
                     InstanceId,
-                    Models.TriggerState.Acquired
+                    LocalTriggerState.Acquired
                 );
 
                 await _firedTriggerRepository.AddFiredTrigger(firedTrigger);
@@ -820,10 +811,10 @@ public partial class MongoDbJobStore
     }
 
 
-    private async Task<Models.TriggerState> CheckBlockedState(JobKey jobKey, Models.TriggerState currentState)
+    private async Task<LocalTriggerState> CheckBlockedState(JobKey jobKey, LocalTriggerState currentState)
     {
         // State can only transition to BLOCKED from PAUSED or WAITING.
-        if (currentState != Models.TriggerState.Waiting && currentState != Models.TriggerState.Paused)
+        if (currentState != LocalTriggerState.Waiting && currentState != LocalTriggerState.Paused)
         {
             return currentState;
         }
@@ -835,8 +826,8 @@ public partial class MongoDbJobStore
         {
             if (firedTrigger.ConcurrentExecutionDisallowed) // TODO: worry about failed/recovering/volatile job  states?
             {
-                return currentState == Models.TriggerState.Paused ? Models.TriggerState.PausedBlocked
-                    : Models.TriggerState.Blocked;
+                return currentState == LocalTriggerState.Paused ? LocalTriggerState.PausedBlocked
+                    : LocalTriggerState.Blocked;
             }
         }
 

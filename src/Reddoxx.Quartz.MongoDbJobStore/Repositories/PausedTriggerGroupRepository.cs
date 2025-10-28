@@ -64,11 +64,7 @@ internal class PausedTriggerGroupRepository : BaseRepository<PausedTriggerGroup>
     {
         // INSERT INTO PAUSED_TRIGGER_GRPS (SCHED_NAME, TRIGGER_GROUP) VALUES (@schedulerName, @triggerGroup)
 
-        var triggerGroup = new PausedTriggerGroup
-        {
-            InstanceName = InstanceName,
-            Group = group,
-        };
+        var triggerGroup = new PausedTriggerGroup(InstanceName, group);
 
         await Collection.InsertOneAsync(triggerGroup);
     }

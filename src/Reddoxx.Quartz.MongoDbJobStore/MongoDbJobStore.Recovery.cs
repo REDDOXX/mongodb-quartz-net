@@ -5,8 +5,6 @@ using Quartz.Impl.AdoJobStore;
 
 using Reddoxx.Quartz.MongoDbJobStore.Models;
 
-using TriggerState = Reddoxx.Quartz.MongoDbJobStore.Models.TriggerState;
-
 namespace Reddoxx.Quartz.MongoDbJobStore;
 
 public partial class MongoDbJobStore
@@ -15,7 +13,7 @@ public partial class MongoDbJobStore
     {
         try
         {
-            var misfireCount = await _triggerRepository.GetMisfireCount(MisfireTime.UtcDateTime);
+            var misfireCount = await _triggerRepository.GetMisfireCount(MisfireTime);
 
             _logger.LogDebug("Found {MisfireCount} triggers that missed their scheduled fire-time.", misfireCount);
 
@@ -45,12 +43,15 @@ public partial class MongoDbJobStore
     {
         // update inconsistent job states
         var result = await _triggerRepository.UpdateTriggersStates(
-            TriggerState.Waiting,
-            TriggerState.Acquired,
-            TriggerState.Blocked
+            LocalTriggerState.Waiting,
+            LocalTriggerState.Acquired,
+            LocalTriggerState.Blocked
         );
 
-        result += await _triggerRepository.UpdateTriggersStates(TriggerState.Paused, TriggerState.PausedBlocked);
+        result += await _triggerRepository.UpdateTriggersStates(
+            LocalTriggerState.Paused,
+            LocalTriggerState.PausedBlocked
+        );
 
         _logger.LogInformation("Freed {Count} triggers from 'acquired' / 'blocked' state.", result);
 
@@ -77,13 +78,13 @@ public partial class MongoDbJobStore
             {
                 recoveringJobTrigger.ComputeFirstFireTimeUtc(null);
 
-                await StoreTriggerInternal(recoveringJobTrigger, null, false, TriggerState.Waiting, false, true);
+                await StoreTriggerInternal(recoveringJobTrigger, null, false, LocalTriggerState.Waiting, false, true);
             }
         }
 
         _logger.LogInformation("Recovery complete");
 
-        var completedTriggers = await _triggerRepository.GetTriggerKeys(TriggerState.Complete);
+        var completedTriggers = await _triggerRepository.GetTriggerKeys(LocalTriggerState.Complete);
 
         foreach (var completedTrigger in completedTriggers)
         {
@@ -140,7 +141,7 @@ public partial class MongoDbJobStore
                 continue;
             }
 
-            await DoUpdateOfMisfiredTrigger(trigger, false, TriggerState.Waiting, recovering);
+            await DoUpdateOfMisfiredTrigger(trigger, false, LocalTriggerState.Waiting, recovering);
 
             var nextTime = trigger.NextFireTime;
             if (nextTime.HasValue && nextTime.Value < earliestNewTime)

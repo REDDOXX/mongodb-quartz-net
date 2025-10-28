@@ -122,12 +122,7 @@ internal class LockRepository : BaseRepository<SchedulerLock>
 
             await Collection.InsertOneAsync(
                 session,
-                new SchedulerLock
-                {
-                    InstanceName = InstanceName,
-                    LockType = lockType,
-                    LockKey = ObjectId.GenerateNewId(),
-                },
+                new SchedulerLock(InstanceName, lockType, ObjectId.GenerateNewId()),
                 cancellationToken: cancellationToken
             );
         }

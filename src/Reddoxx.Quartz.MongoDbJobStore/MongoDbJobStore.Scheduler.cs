@@ -19,7 +19,7 @@ public partial class MongoDbJobStore
         {
             try
             {
-                await RecoverJobs().ConfigureAwait(false);
+                await RecoverJobs();
             }
             catch (Exception ex)
             {

@@ -6,8 +6,6 @@ using Quartz.Impl.Matchers;
 using Reddoxx.Quartz.MongoDbJobStore.Extensions;
 using Reddoxx.Quartz.MongoDbJobStore.Models;
 
-using TriggerState = Reddoxx.Quartz.MongoDbJobStore.Models.TriggerState;
-
 namespace Reddoxx.Quartz.MongoDbJobStore.Repositories;
 
 internal class TriggerRepository : BaseRepository<Trigger>
@@ -109,7 +107,7 @@ internal class TriggerRepository : BaseRepository<Trigger>
                                .FirstOrDefaultAsync();
     }
 
-    public async Task<TriggerState> GetTriggerState(TriggerKey key)
+    public async Task<LocalTriggerState> GetTriggerState(TriggerKey key)
     {
         // SELECT TRIGGER_STATE
         // FROM TRIGGERS
@@ -128,7 +126,7 @@ internal class TriggerRepository : BaseRepository<Trigger>
         {
             // We cannot use a simple projection here, as the TriggerState is a value object
             // which would construct it with = None as value.
-            return TriggerState.Deleted;
+            return LocalTriggerState.Deleted;
         }
 
         return result.State;
@@ -185,7 +183,7 @@ internal class TriggerRepository : BaseRepository<Trigger>
                                .ToListAsync();
     }
 
-    public async Task<List<TriggerKey>> GetTriggerKeys(TriggerState state)
+    public async Task<List<TriggerKey>> GetTriggerKeys(LocalTriggerState state)
     {
         var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) & // 
                      FilterBuilder.Eq(x => x.State, state);
@@ -254,7 +252,7 @@ internal class TriggerRepository : BaseRepository<Trigger>
         //      NEXT_FIRE_TIME ASC, PRIORITY DESC
 
         var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) &
-                     FilterBuilder.Eq(x => x.State, TriggerState.Waiting) &
+                     FilterBuilder.Eq(x => x.State, LocalTriggerState.Waiting) &
                      FilterBuilder.Lte(x => x.NextFireTime, noLaterThan) &
                      FilterBuilder.Or(
                          FilterBuilder.Eq(x => x.MisfireInstruction, MisfireInstruction.IgnoreMisfirePolicy),
@@ -297,7 +295,7 @@ internal class TriggerRepository : BaseRepository<Trigger>
                      .CountDocumentsAsync();
     }
 
-    public async Task<long> GetMisfireCount(DateTime nextFireTime)
+    public async Task<long> GetMisfireCount(DateTimeOffset nextFireTime)
     {
         // SELECT
         //  COUNT(TRIGGER_NAME)
@@ -311,7 +309,7 @@ internal class TriggerRepository : BaseRepository<Trigger>
         var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) &
                      FilterBuilder.Ne(x => x.MisfireInstruction, MisfireInstruction.IgnoreMisfirePolicy) &
                      FilterBuilder.Lt(x => x.NextFireTime, nextFireTime) &
-                     FilterBuilder.Eq(x => x.State, TriggerState.Waiting);
+                     FilterBuilder.Eq(x => x.State, LocalTriggerState.Waiting);
 
         return await Collection.Find(filter)
                                .CountDocumentsAsync();
@@ -364,7 +362,7 @@ internal class TriggerRepository : BaseRepository<Trigger>
         await Collection.UpdateOneAsync(filter, update);
     }
 
-    public async Task<long> UpdateTriggerState(TriggerKey triggerKey, TriggerState state)
+    public async Task<long> UpdateTriggerState(TriggerKey triggerKey, LocalTriggerState state)
     {
         // UPDATE TRIGGERS SET TRIGGER_STATE = @state WHERE SCHED_NAME = @schedulerName AND TRIGGER_NAME = @triggerName AND TRIGGER_GROUP = @triggerGroup
         var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) &
@@ -377,7 +375,11 @@ internal class TriggerRepository : BaseRepository<Trigger>
         return result.ModifiedCount;
     }
 
-    public async Task<long> UpdateTriggerState(TriggerKey triggerKey, TriggerState newState, TriggerState oldState)
+    public async Task<long> UpdateTriggerState(
+        TriggerKey triggerKey,
+        LocalTriggerState newState,
+        LocalTriggerState oldState
+    )
     {
         // UPDATE TRIGGERS
         // SET TRIGGER_STATE = @newState
@@ -396,8 +398,8 @@ internal class TriggerRepository : BaseRepository<Trigger>
 
     public async Task<long> UpdateTriggersStates(
         GroupMatcher<TriggerKey> matcher,
-        TriggerState newState,
-        params TriggerState[] oldStates
+        LocalTriggerState newState,
+        params LocalTriggerState[] oldStates
     )
     {
         var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) &
@@ -410,7 +412,11 @@ internal class TriggerRepository : BaseRepository<Trigger>
         return result.ModifiedCount;
     }
 
-    public async Task<long> UpdateTriggersStates(JobKey jobKey, TriggerState newState, params TriggerState[] oldStates)
+    public async Task<long> UpdateTriggersStates(
+        JobKey jobKey,
+        LocalTriggerState newState,
+        params LocalTriggerState[] oldStates
+    )
     {
         var filter = FilterBuilder.Where(x =>
             x.InstanceName == InstanceName && x.JobKey == jobKey && oldStates.Contains(x.State)
@@ -422,7 +428,7 @@ internal class TriggerRepository : BaseRepository<Trigger>
         return result.ModifiedCount;
     }
 
-    public async Task<long> UpdateTriggersStates(JobKey jobKey, TriggerState newState)
+    public async Task<long> UpdateTriggersStates(JobKey jobKey, LocalTriggerState newState)
     {
         var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) & //
                      FilterBuilder.Eq(x => x.JobKey.Name, jobKey.Name) &
@@ -434,7 +440,7 @@ internal class TriggerRepository : BaseRepository<Trigger>
         return result.ModifiedCount;
     }
 
-    public async Task<long> UpdateTriggersStates(TriggerState newState, params TriggerState[] oldStates)
+    public async Task<long> UpdateTriggersStates(LocalTriggerState newState, params LocalTriggerState[] oldStates)
     {
         //var filter = FilterBuilder.Where(x => x.InstanceName == InstanceName && oldStates.Contains(x.State));
 
@@ -493,7 +499,7 @@ internal class TriggerRepository : BaseRepository<Trigger>
         var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) &
                      FilterBuilder.Ne(x => x.MisfireInstruction, MisfireInstruction.IgnoreMisfirePolicy) &
                      FilterBuilder.Lt(x => x.NextFireTime, nextFireTime) &
-                     FilterBuilder.Eq(x => x.State, TriggerState.Waiting);
+                     FilterBuilder.Eq(x => x.State, LocalTriggerState.Waiting);
 
         var sort = SortBuilder.Ascending(trigger => trigger.NextFireTime)
                               .Descending(trigger => trigger.Priority);
