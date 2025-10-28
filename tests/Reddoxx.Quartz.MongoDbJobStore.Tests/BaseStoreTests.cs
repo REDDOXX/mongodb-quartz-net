@@ -1,5 +1,3 @@
-using System.Reflection;
-
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -14,9 +12,10 @@ using Reddoxx.Quartz.MongoDbJobStore.Redlock;
 using Reddoxx.Quartz.MongoDbJobStore.Tests.Options;
 using Reddoxx.Quartz.MongoDbJobStore.Tests.Persistence;
 
-using StackExchange.Redis;
 using StackExchange.Redis.Extensions.Core.Configuration;
 using StackExchange.Redis.Extensions.System.Text.Json;
+
+using Assembly = System.Reflection.Assembly;
 
 namespace Reddoxx.Quartz.MongoDbJobStore.Tests;
 
@@ -37,9 +36,9 @@ public abstract class BaseStoreTests
     protected static ServiceProvider CreateServiceProvider(string instanceName, bool clustered)
     {
         var configuration = new ConfigurationBuilder()
-            // 
-            .AddUserSecrets(Assembly.GetExecutingAssembly(), true)
-            .Build();
+                            // 
+                            .AddUserSecrets(Assembly.GetExecutingAssembly(), true)
+                            .Build();
 
 
         var services = new ServiceCollection();
@@ -47,14 +46,16 @@ public abstract class BaseStoreTests
 
         services.AddSingleton<IConfiguration>(configuration);
 
-        services.AddOptions<MongoDbOptions>().Bind(configuration.GetSection("MongoDb"));
-        services.AddOptions<RedisOptions>().Bind(configuration.GetSection("Redis"));
+        services.AddOptions<MongoDbOptions>()
+                .Bind(configuration.GetSection("MongoDb"));
+        services.AddOptions<RedisOptions>()
+                .Bind(configuration.GetSection("Redis"));
 
 
-        services.AddStackExchangeRedisExtensions<SystemTextJsonSerializer>(
-            sp =>
+        services.AddStackExchangeRedisExtensions<SystemTextJsonSerializer>(sp =>
             {
-                var options = sp.GetRequiredService<IOptions<RedisOptions>>().Value;
+                var options = sp.GetRequiredService<IOptions<RedisOptions>>()
+                                .Value;
 
                 return
                 [
@@ -76,20 +77,17 @@ public abstract class BaseStoreTests
         services.AddSingleton<IQuartzJobStoreLockingManager, DistributedLocksQuartzLockingManager>();
 
         services.AddSingleton<IQuartzMongoDbJobStoreFactory, LocalQuartzMongoDbJobStoreFactory>();
-        services.AddQuartz(
-            q =>
+        services.AddQuartz(q =>
             {
                 q.SchedulerId = "AUTO";
                 q.SchedulerName = instanceName;
                 q.MaxBatchSize = 10;
 
-                q.UsePersistentStore<MongoDbJobStore>(
-                    storage =>
+                q.UsePersistentStore<MongoDbJobStore>(storage =>
                     {
                         if (clustered)
                         {
-                            storage.UseClustering(
-                                c =>
+                            storage.UseClustering(c =>
                                 {
                                     c.CheckinInterval = TimeSpan.FromSeconds(10);
                                     c.CheckinMisfireThreshold = TimeSpan.FromSeconds(15);
@@ -99,8 +97,7 @@ public abstract class BaseStoreTests
 
                         storage.UseSystemTextJsonSerializer();
 
-                        storage.ConfigureMongoDb(
-                            c =>
+                        storage.ConfigureMongoDb(c =>
                             {
                                 //
                                 c.CollectionPrefix = "HelloWorld";

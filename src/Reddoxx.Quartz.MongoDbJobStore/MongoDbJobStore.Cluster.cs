@@ -251,7 +251,7 @@ public partial class MongoDbJobStore
                         case LocalTriggerState.Blocked:
                         {
                             await _triggerRepository.UpdateTriggersStates(
-                                jKey,
+                                jKey!,
                                 LocalTriggerState.Waiting,
                                 LocalTriggerState.Blocked
                             );
@@ -260,7 +260,7 @@ public partial class MongoDbJobStore
                         case LocalTriggerState.PausedBlocked:
                         {
                             await _triggerRepository.UpdateTriggersStates(
-                                jKey,
+                                jKey!,
                                 LocalTriggerState.Paused,
                                 LocalTriggerState.PausedBlocked
                             );
@@ -282,7 +282,7 @@ public partial class MongoDbJobStore
                     {
                         // handle jobs marked for recovery that were not fully
                         // executed...
-                        if (await _jobDetailRepository.JobExists(jKey))
+                        if (await _jobDetailRepository.JobExists(jKey!))
                         {
                             var recoveryTrig = new SimpleTriggerImpl(
                                 $"recover_{rec.InstanceId}_{Convert.ToString(recoverIds++, CultureInfo.InvariantCulture)}",
@@ -290,39 +290,41 @@ public partial class MongoDbJobStore
                                 ftRec.Fired
                             )
                             {
-                                JobName = jKey.Name,
-                                JobGroup = jKey.Group,
+                                JobKey = jKey!,
                                 MisfireInstruction = MisfireInstruction.SimpleTrigger.FireNow,
                                 Priority = ftRec.Priority,
                             };
 
-                            var jd = await _triggerRepository.GetTriggerJobDataMap(tKey);
-                            if (jd != null)
-                            {
-                                jd.Put(SchedulerConstants.FailedJobOriginalTriggerName, tKey.Name);
-                                jd.Put(SchedulerConstants.FailedJobOriginalTriggerGroup, tKey.Group);
-                                jd.Put(
-                                    SchedulerConstants.FailedJobOriginalTriggerFiretime,
-                                    Convert.ToString(ftRec.Fired, CultureInfo.InvariantCulture)
-                                );
-                                recoveryTrig.JobDataMap = jd;
 
-                                recoveryTrig.ComputeFirstFireTimeUtc(null);
-                                await StoreTriggerInternal(
-                                    recoveryTrig,
-                                    null,
-                                    false,
-                                    LocalTriggerState.Waiting,
-                                    false,
-                                    true
-                                );
-                                recoveredCount++;
-                            }
-                            else
+                            var jd = await _triggerRepository.GetTriggerJobDataMap(tKey);
+                            if (jd == null)
                             {
-                                _logger.LogWarning("");
-                                otherCount++;
+                                _logger.LogWarning(
+                                    "ClusterManager: No job data map found for trigger '{TriggerKey}' using an empty map.",
+                                    tKey
+                                );
+
+                                jd = new JobDataMap();
                             }
+
+                            jd.Put(SchedulerConstants.FailedJobOriginalTriggerName, tKey.Name);
+                            jd.Put(SchedulerConstants.FailedJobOriginalTriggerGroup, tKey.Group);
+                            jd.Put(
+                                SchedulerConstants.FailedJobOriginalTriggerFiretime,
+                                Convert.ToString(ftRec.Fired, CultureInfo.InvariantCulture)
+                            );
+                            recoveryTrig.JobDataMap = jd;
+
+                            recoveryTrig.ComputeFirstFireTimeUtc(null);
+                            await StoreTriggerInternal(
+                                recoveryTrig,
+                                null,
+                                false,
+                                LocalTriggerState.Waiting,
+                                false,
+                                true
+                            );
+                            recoveredCount++;
                         }
                         else
                         {
@@ -342,12 +344,12 @@ public partial class MongoDbJobStore
                     if (ftRec.ConcurrentExecutionDisallowed)
                     {
                         await _triggerRepository.UpdateTriggersStates(
-                            jKey,
+                            jKey!,
                             LocalTriggerState.Waiting,
                             LocalTriggerState.Blocked
                         );
                         await _triggerRepository.UpdateTriggersStates(
-                            jKey,
+                            jKey!,
                             LocalTriggerState.Paused,
                             LocalTriggerState.PausedBlocked
                         );

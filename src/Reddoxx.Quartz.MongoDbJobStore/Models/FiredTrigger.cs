@@ -74,7 +74,7 @@ internal class FiredTrigger
         string instanceName,
         string firedInstanceId,
         TriggerKey triggerKey,
-        JobKey jobKey,
+        JobKey? jobKey,
         string instanceId,
         DateTimeOffset fired,
         DateTimeOffset? scheduled,
@@ -133,8 +133,7 @@ internal class FiredTrigger
 
         var recoveryTrigger = new SimpleTriggerImpl(name, SchedulerConstants.DefaultRecoveryGroup, scheduledTime)
         {
-            JobName = JobKey.Name,
-            JobGroup = JobKey.Group,
+            JobKey = JobKey!,
             Priority = Priority,
             MisfireInstruction = MisfireInstruction.IgnoreMisfirePolicy,
             JobDataMap = jobDataMap,

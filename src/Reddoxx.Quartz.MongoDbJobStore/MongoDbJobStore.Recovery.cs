@@ -58,18 +58,23 @@ public partial class MongoDbJobStore
         // clean up misfired jobs
         await RecoverMisfiredJobsInternal(true);
 
+        // recover jobs marked for recovery that were not fully executed
         var recoverableFiredTriggers = await _firedTriggerRepository.GetRecoverableFiredTriggers(InstanceId);
 
         var results = recoverableFiredTriggers.Select(async trigger =>
-            trigger.GetRecoveryTrigger(await _triggerRepository.GetTriggerJobDataMap(trigger.TriggerKey))
+            {
+                var jd = await _triggerRepository.GetTriggerJobDataMap(trigger.TriggerKey) ?? new JobDataMap();
+
+                return trigger.GetRecoveryTrigger(jd);
+            }
         );
 
         // recover jobs marked for recovery that were not fully executed
-        var recoveringJobTriggers = (await Task.WhenAll(results)).ToList();
+        var recoveringJobTriggers = await Task.WhenAll(results);
 
         _logger.LogInformation(
             "Recovering {Count} jobs that were in-progress at the time of the last shut-down.",
-            recoveringJobTriggers.Count
+            recoveringJobTriggers.Length
         );
 
         foreach (var recoveringJobTrigger in recoveringJobTriggers)

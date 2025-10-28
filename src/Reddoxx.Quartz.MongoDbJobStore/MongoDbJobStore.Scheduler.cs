@@ -13,7 +13,7 @@ public partial class MongoDbJobStore
         if (Clustered)
         {
             _clusterManager = new ClusterManager(this);
-            await _clusterManager.Initialize();
+            await _clusterManager.Initialize(cancellationToken);
         }
         else
         {

@@ -41,8 +41,8 @@ internal class FiredTriggerRepository : BaseRepository<FiredTrigger>
             // CREATE INDEX [IDX_QRTZ_FT_G_J] ON [dbo].[QRTZ_FIRED_TRIGGERS](SCHED_NAME, JOB_GROUP, JOB_NAME);
             new(
                 IndexBuilder.Ascending(x => x.InstanceName)
-                            .Ascending(x => x.JobKey.Group)
-                            .Ascending(x => x.JobKey.Name)
+                            .Ascending(x => x.JobKey!.Group)
+                            .Ascending(x => x.JobKey!.Name)
             ),
 
             // CREATE INDEX [IDX_QRTZ_FT_G_T] ON [dbo].[QRTZ_FIRED_TRIGGERS](SCHED_NAME, TRIGGER_GROUP, TRIGGER_NAME);
@@ -66,8 +66,8 @@ internal class FiredTriggerRepository : BaseRepository<FiredTrigger>
         //   JOB_NAME = @jobName AND
         //   JOB_GROUP = @jobGroup
         var filter = FilterBuilder.Eq(x => x.InstanceName, InstanceName) &
-                     FilterBuilder.Eq(x => x.JobKey.Name, jobKey.Name) &
-                     FilterBuilder.Eq(x => x.JobKey.Group, jobKey.Group);
+                     FilterBuilder.Eq(x => x.JobKey!.Name, jobKey.Name) &
+                     FilterBuilder.Eq(x => x.JobKey!.Group, jobKey.Group);
 
         return await Collection
                      //

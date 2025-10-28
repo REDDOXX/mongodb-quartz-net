@@ -55,7 +55,6 @@ public partial class MongoDbJobStore : IJobStore
     private ClusterManager? _clusterManager;
 
     private bool _schedulerRunning;
-    private volatile bool _shutdown;
 
     private readonly SemaphoreSlim _pendingLocksSemaphore = new(1);
 
@@ -236,8 +235,6 @@ public partial class MongoDbJobStore : IJobStore
     public async Task Shutdown(CancellationToken token = default)
     {
         _logger.LogTrace("Scheduler {InstanceId}/{InstanceName} shutdown", InstanceId, InstanceName);
-
-        _shutdown = true;
 
         if (_misfireHandler != null)
         {

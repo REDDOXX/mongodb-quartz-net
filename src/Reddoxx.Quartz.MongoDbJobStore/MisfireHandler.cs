@@ -54,6 +54,10 @@ internal class MisfireHandler
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (cancellationToken.IsCancellationRequested)
+            {
+                break;
+            }
 
             var now = DateTime.UtcNow;
 
@@ -63,26 +67,12 @@ internal class MisfireHandler
                 _jobStore.SignalSchedulingChangeImmediately(recoverResult.EarliestNewTime);
             }
 
-            cancellationToken.ThrowIfCancellationRequested();
-
-            var timeToSleep = TimeSpan.FromMilliseconds(50); // At least a short pause to help balance threads
-            if (!recoverResult.HasMoreMisfiredTriggers)
-            {
-                timeToSleep = _jobStore.MisfireThreshold - (DateTime.UtcNow - now);
-                if (timeToSleep <= TimeSpan.Zero)
-                {
-                    timeToSleep = TimeSpan.FromMilliseconds(50);
-                }
-
-                if (_numFails > 0)
-                {
-                    timeToSleep = _jobStore.DbRetryInterval > timeToSleep ? _jobStore.DbRetryInterval : timeToSleep;
-                }
-            }
+            var timeToSleep = GetTimeToSleep(recoverResult, now);
 
             await Task.Delay(timeToSleep, cancellationToken);
         }
     }
+
 
     private async Task<RecoverMisfiredJobsResult> Manage()
     {
@@ -105,5 +95,28 @@ internal class MisfireHandler
         }
 
         return RecoverMisfiredJobsResult.NoOp;
+    }
+
+    private TimeSpan GetTimeToSleep(RecoverMisfiredJobsResult recoverResult, DateTime now)
+    {
+        var timeToSleep = TimeSpan.FromMilliseconds(50); // At least a short pause to help balance threads
+        if (recoverResult.HasMoreMisfiredTriggers)
+        {
+            return timeToSleep;
+        }
+
+        timeToSleep = _jobStore.MisfireThreshold - (DateTime.UtcNow - now);
+
+        if (timeToSleep <= TimeSpan.Zero)
+        {
+            timeToSleep = TimeSpan.FromMilliseconds(50);
+        }
+
+        if (_numFails > 0)
+        {
+            return _jobStore.DbRetryInterval > timeToSleep ? _jobStore.DbRetryInterval : timeToSleep;
+        }
+
+        return timeToSleep;
     }
 }

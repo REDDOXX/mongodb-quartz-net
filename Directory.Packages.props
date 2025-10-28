@@ -1,0 +1,51 @@
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+
+	<ItemGroup>
+		<PackageVersion Include="DotNet.ReproducibleBuilds" Version="1.2.39" />
+		<PackageVersion Include="Microsoft.SourceLink.GitHub" Version="8.0.0" />
+		<PackageVersion Include="MinVer" Version="6.0.0" />
+
+	</ItemGroup>
+
+	<ItemGroup>
+
+		<PackageVersion Include="MongoDB.Driver" Version="3.2.0" />
+		
+		<PackageVersion Include="Quartz" Version="3.13.1" />
+		<PackageVersion Include="Quartz.AspNetCore" Version="3.13.1" />
+		<PackageVersion Include="Quartz.Extensions.DependencyInjection" Version="3.13.1" />
+		<PackageVersion Include="Quartz.Serialization.SystemTextJson" Version="3.13.1" />
+
+		<PackageVersion Include="DistributedLock.Redis" Version="1.0.3" />
+
+		<PackageVersion Include="StackExchange.Redis.Extensions.Core" Version="11.0.0" />
+		<PackageVersion Include="StackExchange.Redis.Extensions.AspNetCore" Version="11.0.0" />
+		<PackageVersion Include="StackExchange.Redis.Extensions.System.Text.Json" Version="11.0.0" />
+	</ItemGroup>
+
+	<ItemGroup Condition="'$(TargetFramework)' == 'net9.0'">
+		<PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.2" />
+		<PackageVersion Include="Microsoft.Extensions.Options" Version="9.0.2" />
+		<PackageVersion Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="9.0.2" />
+
+		<PackageVersion Include="Microsoft.Extensions.Configuration" Version="9.0.2" />
+		<PackageVersion Include="Microsoft.Extensions.Configuration.UserSecrets" Version="9.0.2" />
+		<PackageVersion Include="Microsoft.Extensions.Logging" Version="9.0.2" />
+		<PackageVersion Include="Microsoft.Extensions.Logging.Debug" Version="9.0.2" />
+	</ItemGroup>
+
+	<ItemGroup Condition="'$(TargetFramework)' == 'net8.0'">
+		<PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.0" />
+		<PackageVersion Include="Microsoft.Extensions.Options" Version="8.0.1" />
+		<PackageVersion Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="8.0.0" />
+
+		<PackageVersion Include="Microsoft.Extensions.Configuration" Version="8.0.0" />
+		<PackageVersion Include="Microsoft.Extensions.Configuration.UserSecrets" Version="8.0.1" />
+		<PackageVersion Include="Microsoft.Extensions.Logging" Version="8.0.0" />
+		<PackageVersion Include="Microsoft.Extensions.Logging.Debug" Version="8.0.0" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageVersion Include="TUnit" Version="0.78.0" />
+	</ItemGroup>
+</Project>

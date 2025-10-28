@@ -7,36 +7,33 @@ using Reddoxx.Quartz.MongoDbJobStore.Database;
 using Reddoxx.Quartz.MongoDbJobStore.Extensions;
 using Reddoxx.Quartz.MongoDbJobStore.Tests.Persistence;
 
-using Xunit;
-
 namespace Reddoxx.Quartz.MongoDbJobStore.Tests.DependencyInjection;
 
 public class DependencyInjectionTest
 {
-    [Fact]
+    [Test]
     public async Task SetupDependencyInjection()
     {
         var services = new ServiceCollection();
         services.AddLogging(builder => { builder.AddDebug(); });
 
         services.AddSingleton<IQuartzMongoDbJobStoreFactory, LocalQuartzMongoDbJobStoreFactory>();
-        services.AddQuartz(
-            q =>
+        services.AddQuartz(q =>
             {
-                q.SchedulerName = Guid.NewGuid().ToString("N");
+                q.SchedulerName = Guid.NewGuid()
+                                      .ToString("N");
                 q.InterruptJobsOnShutdown = true;
 
-                q.UsePersistentStore<MongoDbJobStore>(
-                    storage =>
+                q.UsePersistentStore<MongoDbJobStore>(storage =>
                     {
                         storage.UseClustering();
                         storage.UseSystemTextJsonSerializer();
 
-                        storage.ConfigureMongoDb(
-                            c =>
+                        storage.ConfigureMongoDb(c =>
                             {
                                 //
-                                c.CollectionPrefix = Guid.NewGuid().ToString("N");
+                                c.CollectionPrefix = Guid.NewGuid()
+                                                         .ToString("N");
                             }
                         );
                     }
