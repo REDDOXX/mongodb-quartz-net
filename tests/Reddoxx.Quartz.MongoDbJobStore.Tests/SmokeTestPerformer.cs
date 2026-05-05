@@ -515,7 +515,7 @@ public class SimpleRecoveryJob : IJob
         var count = data.ContainsKey(Count) ? data.GetInt(Count) : 0;
 
         count++;
-        data.Put(Count, count);
+        data[Count] = count;
     }
 }
 

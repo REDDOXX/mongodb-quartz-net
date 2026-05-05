@@ -258,8 +258,8 @@ public class MongoDbJobStoreTests : BaseStoreTests, IDisposable
         var jobExecTimestamps = new List<DateTime>();
         var barrier = new Barrier(2);
 
-        _scheduler.Context.Put(Barrier, barrier);
-        _scheduler.Context.Put(DateStamps, jobExecTimestamps);
+        _scheduler.Context[Barrier] = barrier;
+        _scheduler.Context[DateStamps] = jobExecTimestamps;
         await _scheduler.Start();
 
         Thread.Yield();
@@ -295,8 +295,8 @@ public class MongoDbJobStoreTests : BaseStoreTests, IDisposable
 
         await _scheduler.Clear();
 
-        _scheduler.Context.Put(Barrier, barrier);
-        _scheduler.Context.Put(DateStamps, jobExecTimestamps);
+        _scheduler.Context[Barrier] = barrier;
+        _scheduler.Context[DateStamps] = jobExecTimestamps;
 
         await _scheduler.Start();
 
@@ -331,8 +331,8 @@ public class MongoDbJobStoreTests : BaseStoreTests, IDisposable
 
         var barrier = new Barrier(2);
 
-        _scheduler.Context.Put(Barrier, barrier);
-        _scheduler.Context.Put(DateStamps, jobExecTimestamps);
+        _scheduler.Context[Barrier] = barrier;
+        _scheduler.Context[DateStamps] = jobExecTimestamps;
 
         var job1 = JobBuilder.Create<SimpleJobWithSync>()
                              .WithIdentity("job1")
@@ -442,8 +442,8 @@ public class MongoDbJobStoreTests : BaseStoreTests, IDisposable
         var barrier = new Barrier(2);
         try
         {
-            _scheduler.Context.Put(Barrier, barrier);
-            _scheduler.Context.Put(DateStamps, jobExecTimestamps);
+            _scheduler.Context[Barrier] = barrier;
+            _scheduler.Context[DateStamps] = jobExecTimestamps;
             await _scheduler.Start();
 
             var jobName = Guid.NewGuid()
@@ -483,8 +483,9 @@ public class MongoDbJobStoreTests : BaseStoreTests, IDisposable
         var barrier = new Barrier(2);
         try
         {
-            _scheduler.Context.Put(Barrier, barrier);
-            _scheduler.Context.Put(DateStamps, jobExecTimestamps);
+            _scheduler.Context[Barrier] = barrier;
+            _scheduler.Context[DateStamps] = jobExecTimestamps;
+
             await _scheduler.Start();
             var jobName = Guid.NewGuid()
                               .ToString();

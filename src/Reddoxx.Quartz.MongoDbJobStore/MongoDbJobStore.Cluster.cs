@@ -307,12 +307,13 @@ public partial class MongoDbJobStore
                                 jd = new JobDataMap();
                             }
 
-                            jd.Put(SchedulerConstants.FailedJobOriginalTriggerName, tKey.Name);
-                            jd.Put(SchedulerConstants.FailedJobOriginalTriggerGroup, tKey.Group);
-                            jd.Put(
-                                SchedulerConstants.FailedJobOriginalTriggerFiretime,
-                                Convert.ToString(ftRec.Fired, CultureInfo.InvariantCulture)
-                            );
+                            jd[SchedulerConstants.FailedJobOriginalTriggerName] = tKey.Name;
+                            jd[SchedulerConstants.FailedJobOriginalTriggerGroup] = tKey.Group;
+                            jd[SchedulerConstants.FailedJobOriginalTriggerFiretime] = Convert.ToString(
+                                ftRec.Fired,
+                                CultureInfo.InvariantCulture
+                            )!;
+
                             recoveryTrig.JobDataMap = jd;
 
                             recoveryTrig.ComputeFirstFireTimeUtc(null);

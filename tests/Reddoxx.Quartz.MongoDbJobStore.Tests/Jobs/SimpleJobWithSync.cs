@@ -8,8 +8,8 @@ public class SimpleJobWithSync : IJob
     {
         try
         {
-            var jobExecTimestamps = (List<DateTime>)context.Scheduler.Context.Get(BaseStoreTests.DateStamps);
-            var barrier = (Barrier)context.Scheduler.Context.Get(BaseStoreTests.Barrier);
+            var jobExecTimestamps = (List<DateTime>)context.Scheduler.Context[BaseStoreTests.DateStamps];
+            var barrier = (Barrier)context.Scheduler.Context[BaseStoreTests.Barrier];
 
             jobExecTimestamps.Add(DateTime.UtcNow);
 
